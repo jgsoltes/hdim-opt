@@ -1,5 +1,5 @@
 ## High-Dimensional Optimization Suite
-Optimization suite for complex, ultra-high-dimensional problems.
+Optimization suite for complex, high-dimensional problems.
 
 **QUASAR** Optimizer (Quasi-Adaptive Search with Asymptotic Reinitialization):
 
