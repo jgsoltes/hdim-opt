@@ -1,0 +1,40 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hdim_opt"
+version = "1.0.0" # match __version__ in __init__.py
+description = "High-Dimensional Optimization Suite: contains QUASAR optimizer and HDS sampling algorithms."
+readme = "README.md"
+authors = [
+  { name="Julian Soltes", email="jsoltes@regis.edu" },
+]
+license = { text = "MIT" }
+requires-python = ">=3.8"
+keywords = ["optimization", "high-dimensional", "sampling", "QUASAR", "HDS"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Optimization",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy", "scipy"]
+
+[project.optional-dependencies]
+hds = [
+    # required by HDS `pip install hdim_opt[hds]`
+    "pandas",
+    "scikit-learn", 
+    "joblib"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hdim_opt*"] # find hdim_opt package
