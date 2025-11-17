@@ -4,7 +4,7 @@ Optimization suite for complex, high-dimensional problems.
 **QUASAR** Optimizer (Quasi-Adaptive Search with Asymptotic Reinitialization):
 
 * Quantum-inspired evolutionary algorithm, efficient for minimizing high-dimensional, non-differentiable, and non-parametric functions.
-* Statistically significant improvements over contemporary optimizers ([arxiv link]).
+* Statistically significant improvements over contemporary optimizers.
 * Called via hdim_opt.quasar()
 
 **HDS** Sampler (Hyperellipsoid Density Sampling):
