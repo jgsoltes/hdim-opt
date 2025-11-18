@@ -1,17 +1,4 @@
-import numpy as np
-import pandas as pd
-from scipy import stats
-from joblib import Parallel, delayed
-from sklearn.neighbors import BallTree
-from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
-from sklearn.random_projection import GaussianRandomProjection
-from sklearn.decomposition import PCA
-import scipy.cluster.hierarchy as shc
-import time
-import warnings
-
-# globals
-warnings.filterwarnings('ignore', category=UserWarning)
+# global epslion
 epsilon = 1e-12
 
 ### misc helper functions 
@@ -21,6 +8,7 @@ def sample_hypersphere(n_dimensions, radius, n_samples_in_sphere, radius_qmc_seq
     Objective:
         - Samples unit hyperspheres using Marsaglia polar vectors scaled by a QMC sequence.
     '''
+    import numpy as np
     
     # generate normal distribution (for angular direction)
     samples = np.random.normal(size=(n_samples_in_sphere, n_dimensions))
@@ -47,6 +35,7 @@ def sample_hyperellipsoid(n_dimensions, n_samples_in_ellipsoid, origin, pca_comp
             - Calls the function to sample unit hyperspheres.
             - Transforms the hyperspherical samples to the ellipsoid axes defined using the PCA variances.
     '''
+    import numpy as np
     
     # generate samples in unit hypersphere
     unit_sphere_samples = sample_hypersphere(n_dimensions, 1.0, n_samples_in_ellipsoid, radius_qmc_sequence)
@@ -70,6 +59,11 @@ def sample_in_voids(existing_samples, n_to_fill, bounds_min, bounds_max,
         - Identify & fill voids in the sample space, using the out-of-bounds sample set.
         - Uses BallTree K-NearestNeighbors to identify voids.
     '''
+    from sklearn.neighbors import BallTree
+    from sklearn.random_projection import GaussianRandomProjection
+    import numpy as np
+    from scipy import stats
+    import time
     
     # extract shape
     n_existing, n_dimensions = existing_samples.shape
@@ -157,6 +151,9 @@ def fit_pca_for_cluster(cluster_samples, current_origin, initial_samples_std, n_
     Performs PCA on a single cluster's samples or returns a default, 
     called in parallel.
     '''
+
+    from sklearn.decomposition import PCA
+    import numpy as np
     
     # extract shape
     n_cluster_samples = len(cluster_samples)
@@ -182,7 +179,7 @@ def fit_pca_for_cluster(cluster_samples, current_origin, initial_samples_std, n_
 def sample(n_samples, bounds,
            weights=None, normalize=False,
            n_ellipsoids=None, n_initial_clusters=None, n_initial_qmc=None,
-           seed=None, verbose=False):
+           seed=None, plot_dendrogram=False, verbose=False):
     '''
     Objective:
         - Generates a Hyperellipsoid Density sample sequence over the specified parameter range.
@@ -197,10 +194,24 @@ def sample(n_samples, bounds,
             - Redunant if n_ellipsoids is specified.
         - n_initial_qmc: Number of initial QMC samples to use for cluster analysis.
         - seed: Random seed.
+        - plot_dendrogram: Boolean to display dendrogram used for ellipsoid determination.
         - verbose: Boolean to display stats and plots.
     Outputs:
         - hds_samples: Hyperellipsoid Density sample sequence.
     '''
+
+    # imports
+    import numpy as np
+    import pandas as pd
+    from scipy import stats
+    from joblib import Parallel, delayed
+    from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
+    from sklearn.random_projection import GaussianRandomProjection
+    from sklearn.decomposition import PCA
+    import scipy.cluster.hierarchy as shc
+    import time
+    import warnings
+    warnings.filterwarnings('ignore', category=UserWarning)
 
     # initialize misc parameters:
     start_time = time.time()
@@ -471,18 +482,19 @@ def sample(n_samples, bounds,
         print(f'    - stdev comparison QMC: {sobol_std:.2f}\n')
 
         # dendrogram of centroids
-        if linkage_matrix is not None:
-            plt.figure(figsize=(9, 7))
-            plt.title(f'Dendrogram of Initial Centroids: {n_dimensions}D')
-            
-            # using pre-calculated linkage matrix
-            shc.dendrogram(linkage_matrix, color_threshold=optimal_distance, above_threshold_color='gray')
-            plt.axhline(y=optimal_distance, color='r', linestyle='--', label=f'Optimal Cutoff (k={n_hyperellipsoids})')
-            plt.ylabel('Dissimilarity Distance')
-            plt.xticks([])
-            
-            plt.legend(loc='upper right')
-            plt.show()
+        if plot_dendrogram:
+            if linkage_matrix is not None:
+                plt.figure(figsize=(8, 6))
+                plt.title(f'Dendrogram of Initial Centroids: {n_dimensions}D')
+                
+                # using pre-calculated linkage matrix
+                shc.dendrogram(linkage_matrix, color_threshold=optimal_distance, above_threshold_color='gray')
+                plt.axhline(y=optimal_distance, color='r', linestyle='--', label=f'Optimal Cutoff (k={n_hyperellipsoids})')
+                plt.ylabel('Dissimilarity Distance')
+                plt.xticks([])
+                
+                plt.legend(loc='upper right')
+                plt.show()
         
         # plot for 1d samples
         if n_dimensions == 1:
@@ -522,24 +534,6 @@ def sample(n_samples, bounds,
             xlabel_str = f'Dimension 0'
             ylabel_str = f'Dimension 1'
 
-        # plot histograms
-        fig, ax = plt.subplots(1,2,figsize=(9,5))
-        ax[0].hist(hds_sequence.flatten(), bins=30, label='HDS Samples')
-        ax[0].set_title('HDS Distribution')
-        ax[0].set_ylabel('')
-        ax[0].set_yticks([])
-        ax[0].set_xticks([])
-        ax[0].set_xlabel('')
-        ax[1].hist(sobol_samples.flatten(), bins=30, label='Sobol Samples')
-        ax[1].set_title('Sobol Distribution')
-        ax[1].set_ylabel('')
-        ax[1].set_xlabel('')
-        ax[1].set_xticks([])
-        ax[1].set_yticks([])
-        
-        plt.tight_layout()
-        plt.show()
-        
         # dark visualization parameters for better sample visuals
         plt.rcParams['figure.facecolor'] = 'black'
         plt.rcParams['axes.facecolor'] = 'black'
@@ -551,27 +545,33 @@ def sample(n_samples, bounds,
         plt.rcParams['grid.color'] = 'white'
         plt.rcParams['lines.color'] = 'white'
 
-        # plot samples in PCA space
-        fig, ax = plt.subplots(figsize=(7, 6))
-
         # samples
-        ax.scatter(data_to_plot[:, 0], data_to_plot[:, 1], zorder=0, color='deepskyblue', label='Initial QMC Data', alpha=0.5, s=1.5)
-        ax.scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], color='yellow', s=5, zorder=5, label='HDS Samples')
-        ax.scatter(sobol_samples_plot[:, 0], sobol_samples_plot[:, 1], color='red', s=8, label='Sobol Samples')
+        fig, ax = plt.subplots(1,2,figsize=(11,5.5))
+        
+        ax[0].scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], color='deepskyblue', s=0.67, zorder=5, label='HDS Samples')
         
         # data hypercube boundary
         min_plot = np.min(data_to_plot, axis=0)
         max_plot = np.max(data_to_plot, axis=0)
         width = max_plot[0] - min_plot[0]
         height = max_plot[1] - min_plot[1]
-        hypercube_boundary = Rectangle((min_plot[0], min_plot[1]), width, height, fill=False, color='deepskyblue', linewidth=1.5, linestyle='--', label='Bounds', zorder=6)
+        hypercube_boundary = Rectangle((min_plot[0], min_plot[1]), width, height, fill=False, alpha=0.75, color='cornflowerblue', linewidth=1, 
+                                       linestyle='--', zorder=6)
         
-        ax.add_patch(hypercube_boundary)
-        ax.set_title(title_str, fontweight='bold', fontsize=14)
-        ax.set_xlabel(xlabel_str)
-        ax.set_ylabel(ylabel_str)
-        ax.axis(False)
-        ax.legend(loc=(0.7,0.75), fontsize=11)
+        ax[0].add_patch(hypercube_boundary)
+        ax[0].set_title(title_str, fontweight='bold', fontsize=14)
+        ax[0].set_xlabel(xlabel_str)
+        ax[0].set_ylabel(ylabel_str)
+        ax[0].axis(False)
+        ax[0].legend(loc=(0.7,0.87), fontsize=8)
+
+        # plot histograms
+        ax[1].hist(hds_sequence, bins=30, label='HDS Samples', edgecolor='black', alpha=0.9)
+        ax[1].set_title('HDS Distribution')
+        ax[1].set_ylabel('')
+        ax[1].set_yticks([])
+        ax[1].set_xticks([])
+        ax[1].set_xlabel('')
 
         plt.tight_layout()
         plt.show()
