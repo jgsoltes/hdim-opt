@@ -15,7 +15,9 @@ pip install hdim-opt
 #### QUASAR Optimizer (Quasi-Adaptive Search with Asymptotic Reinitialization)
 **QUASAR** is a quantum-inspired evolutionary algorithm, highly efficient for minimizing complex high-dimensional, non-differentiable, and non-parametric objective functions.
 
-* Benefit: Statistically significant improvements in convergence speed and solution quality compared to contemporary optimizers. 
+* Benefit: Statistically significant improvements in convergence speed and solution quality compared to contemporary optimizers.
+
+* Reference: See experimental trials and analysis: [https://arxiv.org/abs/2511.13843].
 
 Quick Use Example:
 
@@ -57,4 +59,4 @@ hds_samples = hdim_opt.hds(n_samples, bounds)
 
 Additional functions include: 
 * sobol() to generate uniform Sobol samples (via SciPy)
-* sensitivity() to perform Sobol sensitivity analysis (via SALib)
+* sensitivity() to perform Sobol sensitivity analysis (via SALib) (work in progress)

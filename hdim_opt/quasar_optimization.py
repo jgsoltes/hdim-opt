@@ -541,6 +541,9 @@ def optimize(func, bounds, args=(),
         - vectorized: Boolean to accept vectorized objective functions.
         - verbose: Displays prints and plots.
         - num_to_plot: Number of solution trajectories to display in the verbose plot.
+        - plot_contour: Display contour for 2D plots. May cause issues with plotting.
+        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
+        - seed: Random seed.
     Outputs:
         - (best_solution, best_fitness) tuple:
             - best_solution: Best solution found.

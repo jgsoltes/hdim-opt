@@ -1,6 +1,23 @@
 def sens_analysis(func, bounds, n_samples=2**10, 
                   kwargs=None, param_names=None, 
                   verbose=True, log_scale=True):
+    '''
+    Objective:
+        - Perform Sobol sensitivity analysis using the target function.
+        - Work in progress.
+    Inputs:
+        - func:
+        - bounds:
+        n_samples: Number of Sobol samples to generate.
+        kwargs: Keyword arguments (dictionary) for objective function.
+        param_names: Optional parameter names for each dimension.
+        verbose: Boolean to display plots.
+        log_scale: Boolean to log-scale plots.
+    Outputs:
+        - Si: Full sensitivity indices and confidences.
+        - S2_matrix: Matrix of S2 relationship sensitivity indices.
+    '''
+    
     try:
         import numpy as np
         from SALib.sample import sobol as sobol_sample

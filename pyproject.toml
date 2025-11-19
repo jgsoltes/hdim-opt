@@ -6,12 +6,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.0.4" # match __version__ in __init__.py
+version = "1.0.6" # match __version__ in __init__.py
 description = "Optimization toolkit for complex, high-dimensional, non-differentiable problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
   { name="Julian Soltes", email="jsoltes@regis.edu"}
 ]
+author = "Julian Soltes"
+author-email = "jsoltes@regis.edu"
 maintainers = [
   { name = "Julian Soltes", email = "jsoltes@regis.edu"}
 ]
