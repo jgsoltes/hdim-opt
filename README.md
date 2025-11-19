@@ -1,6 +1,6 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-A modern optimization suite for complex, high-dimensional problems. This package provides state-of-the-art algorithms to accelerate convergence and intelligently explore the search space, including an evolutionary optimizer and a Quasi-Monte Carlo sampler.
+A modern optimization suite for complex, high-dimensional problems. This package provides state-of-the-art algorithms to accelerate convergence, including the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
 
 ---
 
@@ -54,3 +54,7 @@ n_samples = 1000
 # generate HDS samples
 hds_samples = hdim_opt.hds(n_samples, bounds)
 ```
+
+Additional functions include: 
+* sobol() to generate uniform Sobol samples (via SciPy)
+* sensitivity() to perform Sobol sensitivity analysis (via SALib)

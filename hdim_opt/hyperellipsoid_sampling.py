@@ -201,16 +201,22 @@ def sample(n_samples, bounds,
     '''
 
     # imports
-    import numpy as np
-    import pandas as pd
-    from scipy import stats
-    from joblib import Parallel, delayed
-    from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
-    from sklearn.random_projection import GaussianRandomProjection
-    from sklearn.decomposition import PCA
-    import scipy.cluster.hierarchy as shc
-    import time
-    import warnings
+    try:
+        import numpy as np
+        import pandas as pd
+        from scipy import stats
+        from joblib import Parallel, delayed
+        from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
+        from sklearn.random_projection import GaussianRandomProjection
+        from sklearn.decomposition import PCA
+        import scipy.cluster.hierarchy as shc
+        import time
+        import warnings
+    except ImportError as e:
+        raise ImportError(
+            f"HDS requires additional dependencies: (pandas, sklearn), if verbose: (matplotlib)."
+        ) from e
+        
     warnings.filterwarnings('ignore', category=UserWarning)
 
     # initialize misc parameters:
@@ -446,10 +452,15 @@ def sample(n_samples, bounds,
         sample_generation_time = end_time - start_time
         
         # visualization imports
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        from matplotlib.patches import Circle, Rectangle
-        sns.set_style('dark')
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            from matplotlib.patches import Circle, Rectangle
+            sns.set_style('dark')
+        except ImportError as e:
+            raise ImportError(
+                f'Plotting requires dependencies: (matplotlib, seaborn).'
+            ) from e
         
         # print results
         print('\nresults:')
@@ -510,7 +521,7 @@ def sample(n_samples, bounds,
 
         
         ### PCA for n_dim > 2:
-
+        
         if normalize:
             data_to_plot_raw = initial_samples
         else:
@@ -535,45 +546,36 @@ def sample(n_samples, bounds,
             ylabel_str = f'Dimension 1'
 
         # dark visualization parameters for better sample visuals
-        plt.rcParams['figure.facecolor'] = 'black'
-        plt.rcParams['axes.facecolor'] = 'black'
-        plt.rcParams['text.color'] = 'white'
-        plt.rcParams['axes.labelcolor'] = 'white'
-        plt.rcParams['xtick.color'] = 'white'
-        plt.rcParams['ytick.color'] = 'white'
-        plt.rcParams['axes.edgecolor'] = 'white'
-        plt.rcParams['grid.color'] = 'white'
-        plt.rcParams['lines.color'] = 'white'
-
-        # samples
-        fig, ax = plt.subplots(1,2,figsize=(11,5.5))
-        
-        ax[0].scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], color='deepskyblue', s=0.67, zorder=5, label='HDS Samples')
-        
-        # data hypercube boundary
-        min_plot = np.min(data_to_plot, axis=0)
-        max_plot = np.max(data_to_plot, axis=0)
-        width = max_plot[0] - min_plot[0]
-        height = max_plot[1] - min_plot[1]
-        hypercube_boundary = Rectangle((min_plot[0], min_plot[1]), width, height, fill=False, alpha=0.75, color='cornflowerblue', linewidth=1, 
-                                       linestyle='--', zorder=6)
-        
-        ax[0].add_patch(hypercube_boundary)
-        ax[0].set_title(title_str, fontweight='bold', fontsize=14)
-        ax[0].set_xlabel(xlabel_str)
-        ax[0].set_ylabel(ylabel_str)
-        ax[0].axis(False)
-        ax[0].legend(loc=(0.7,0.87), fontsize=8)
-
-        # plot histograms
-        ax[1].hist(hds_sequence, bins=30, label='HDS Samples', edgecolor='black', alpha=0.9)
-        ax[1].set_title('HDS Distribution')
-        ax[1].set_ylabel('')
-        ax[1].set_yticks([])
-        ax[1].set_xticks([])
-        ax[1].set_xlabel('')
-
-        plt.tight_layout()
-        plt.show()
+        with plt.style.context('dark_background'):
+            # samples
+            fig, ax = plt.subplots(1,2,figsize=(11,5.5))
+            
+            ax[0].scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], color='deepskyblue', s=0.67, zorder=5, label='HDS Samples')
+            
+            # data hypercube boundary
+            min_plot = np.min(data_to_plot, axis=0)
+            max_plot = np.max(data_to_plot, axis=0)
+            width = max_plot[0] - min_plot[0]
+            height = max_plot[1] - min_plot[1]
+            hypercube_boundary = Rectangle((min_plot[0], min_plot[1]), width, height, fill=False, alpha=0.75, color='cornflowerblue', linewidth=1, 
+                                           linestyle='--', zorder=6)
+            
+            ax[0].add_patch(hypercube_boundary)
+            ax[0].set_title(title_str, fontweight='bold', fontsize=14)
+            ax[0].set_xlabel(xlabel_str)
+            ax[0].set_ylabel(ylabel_str)
+            ax[0].axis(False)
+            ax[0].legend(loc=(0.7,0.87), fontsize=8)
+    
+            # plot histograms
+            ax[1].hist(hds_sequence.flatten(), bins=30, label='HDS Samples', edgecolor='black',color='deepskyblue', alpha=0.75)
+            ax[1].set_title('HDS Distribution')
+            ax[1].set_ylabel('')
+            ax[1].set_yticks([])
+            ax[1].set_xticks([])
+            ax[1].set_xlabel('')
+    
+            plt.tight_layout()
+            plt.show()
 
     return hds_sequence

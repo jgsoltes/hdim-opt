@@ -101,32 +101,29 @@ def plot_mutations(n_points=100000):
     
     local_muts = np.random.normal(loc=0.0, scale=local_std, size=(n_points, dimensions))
     local_muts_flat = local_muts.flatten()
-    
-    try: # in case seaborn is not imported
-        import seaborn as sns
-        sns.set_style('dark')
-        sns.histplot(x=global_muts_flat, bins=50, edgecolor='black',stat='density',kde=True,color='deepskyblue',alpha=0.85,label='Global')
-        sns.histplot(x=local_muts_flat, bins=50, edgecolor='black',stat='density',kde=True,color='darkorange',alpha=0.85,label='Local')
-    except:
-        plt.rcParams['figure.facecolor'] = 'black'
-        plt.rcParams['axes.facecolor'] = 'black'
-        plt.rcParams['text.color'] = 'white'
-        plt.rcParams['axes.labelcolor'] = 'white'
-        plt.rcParams['xtick.color'] = 'white'
-        plt.rcParams['ytick.color'] = 'white'
-        plt.rcParams['axes.edgecolor'] = 'white'
-        plt.rcParams['grid.color'] = 'white'
-        plt.rcParams['lines.color'] = 'white'
-        plt.hist(global_muts_flat, bins=50, edgecolor='black',density=True,color='deepskyblue',alpha=0.85,label='Global')
-        plt.hist(local_muts_flat, bins=50, edgecolor='black',density=True,color='darkorange',alpha=0.85,label='Local')
-    finally:
-        plt.title('Mutation Factor Distribution',fontsize=16)
-        plt.xlabel('Mutation Factor',fontsize=15)
-        plt.ylabel('Frequency',fontsize=15)
-        plt.legend(fontsize=15)
-        
-        plt.tight_layout()
-        plt.show()
+
+    with plt.style.context('dark_background'):
+        try: # in case seaborn is not imported
+            import seaborn as sns
+            sns.histplot(x=global_muts_flat, bins=50, edgecolor='black',stat='density',kde=True,color='deepskyblue',alpha=0.85,label='Global')
+            sns.histplot(x=local_muts_flat, bins=50, edgecolor='black',stat='density',kde=True,color='darkorange',alpha=0.85,label='Local')
+            plt.title('Mutation Factor Distribution',fontsize=16)
+            plt.xlabel('Mutation Factor',fontsize=15)
+            plt.ylabel('Frequency',fontsize=15)
+            plt.legend(fontsize=15)
+            
+            plt.tight_layout()
+            plt.show()
+        except ImportError:
+            plt.hist(global_muts_flat, bins=50, edgecolor='black',density=True,color='deepskyblue',alpha=0.85,label='Global')
+            plt.hist(local_muts_flat, bins=50, edgecolor='black',density=True,color='darkorange',alpha=0.85,label='Local')
+            plt.title('Mutation Factor Distribution',fontsize=16)
+            plt.xlabel('Mutation Factor',fontsize=15)
+            plt.ylabel('Frequency',fontsize=15)
+            plt.legend(fontsize=15)
+            
+            plt.tight_layout()
+            plt.show()
 
 
 def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_plot):
@@ -138,88 +135,90 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
     import matplotlib.pyplot as plt
 
     # visualization params
-    plt.rcParams['figure.facecolor'] = 'black'
-    plt.rcParams['axes.facecolor'] = 'black'
-    plt.rcParams['text.color'] = 'white'
-    plt.rcParams['axes.labelcolor'] = 'white'
-    plt.rcParams['xtick.color'] = 'white'
-    plt.rcParams['ytick.color'] = 'white'
-    plt.rcParams['axes.edgecolor'] = 'white'
-    plt.rcParams['grid.color'] = 'white'
-    plt.rcParams['lines.color'] = 'white'
+    with plt.style.context('dark_background'):
     
-    original_dims = bounds.shape[0]
+        original_dims = bounds.shape[0]
+        
+        # convert to arrays
+        plot_pop_history = np.array(pop_history)
+        plot_best_history = np.array(best_history)
+        
+        # ensure bounds array has more than 2 dimensions
+        if original_dims > 2:
+            pca = PCA(n_components=2)
+            
+            # reshape data to fit PCA
+            all_data = plot_pop_history.reshape(-1, original_dims)
+            
+            # fit PCA on population history
+            pca.fit(all_data)
     
-    # convert to arrays
-    plot_pop_history = np.array(pop_history)
-    plot_best_history = np.array(best_history)
-    
-    # ensure bounds array has more than 2 dimensions
-    if original_dims > 2:
-        pca = PCA(n_components=2)
+            # reshape data
+            num_generations = plot_pop_history.shape[0]
+            popsize = plot_pop_history.shape[1]
+            
+            # transform and reshape dadta
+            plot_pop_history = pca.transform(all_data).reshape(num_generations, popsize, 2)
+            plot_best_history = pca.transform(plot_best_history)
+            
+            # adjust bounds
+            combined_transformed_data = np.concatenate([plot_pop_history.reshape(-1, 2), plot_best_history], axis=0)
+            
+            # ensure combined data is not empty
+            if combined_transformed_data.size > 0:
+                min_vals = np.min(combined_transformed_data, axis=0)
+                max_vals = np.max(combined_transformed_data, axis=0)
+                x_min, x_max = min_vals[0], max_vals[0]
+                y_min, y_max = min_vals[1], max_vals[1]
+            else:
+                x_min, x_max = -1, 1
+                y_min, y_max = -1, 1
         
-        # reshape data to fit PCA
-        all_data = plot_pop_history.reshape(-1, original_dims)
-        
-        # fit PCA on population history
-        pca.fit(all_data)
-
-        # reshape data
-        num_generations = plot_pop_history.shape[0]
-        popsize = plot_pop_history.shape[1]
-        
-        # transform and reshape dadta
-        plot_pop_history = pca.transform(all_data).reshape(num_generations, popsize, 2)
-        plot_best_history = pca.transform(plot_best_history)
-        
-        # adjust bounds
-        combined_transformed_data = np.concatenate([plot_pop_history.reshape(-1, 2), plot_best_history], axis=0)
-        
-        # ensure combined data is not empty
-        if combined_transformed_data.size > 0:
-            min_vals = np.min(combined_transformed_data, axis=0)
-            max_vals = np.max(combined_transformed_data, axis=0)
-            x_min, x_max = min_vals[0], max_vals[0]
-            y_min, y_max = min_vals[1], max_vals[1]
         else:
-            x_min, x_max = -1, 1
-            y_min, y_max = -1, 1
-    
-    else:
-        x_min, x_max = bounds[0, 0], bounds[0, 1]
-        y_min, y_max = bounds[1, 0], bounds[1, 1]
-    
-    plt.figure(figsize=(9, 7))
-    plt.xlabel('Principal Component 0')
-    plt.ylabel('Principal Component 1')
-    plt.title('Solution Trajectories')
-    
-    # objective function contour plot
-    x = np.linspace(x_min, x_max, 100)
-    y = np.linspace(y_min, y_max, 100)
-    X, Y = np.meshgrid(x, y)
-    xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
-    
-    if plot_pop_history is not None:
-        indices_to_plot = np.random.choice(plot_pop_history.shape[1], min(num_to_plot, plot_pop_history.shape[1]), replace=False)
+            x_min, x_max = bounds[0, 0], bounds[0, 1]
+            y_min, y_max = bounds[1, 0], bounds[1, 1]
         
-        for i in indices_to_plot:
-            x_coords = plot_pop_history[:, i, 0]
-            y_coords = plot_pop_history[:, i, 1]
-            plt.plot(x_coords, y_coords, linestyle='-', marker='o', markersize=3, alpha=0.67, zorder=1)
+        plt.figure(figsize=(9, 7))
+        if original_dims == 2:
+            plt.xlabel('Dimension 0')
+            plt.ylabel('Dimension 1')
+        else:
+            plt.xlabel('Principal Component 0')
+            plt.ylabel('Principal Component 1')
+        plt.title('Solution Trajectories')
+        
+        # objective function contour plot
+        x = np.linspace(x_min, x_max, 100)
+        y = np.linspace(y_min, y_max, 100)
+        X, Y = np.meshgrid(x, y)
+        xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
 
-    # plot path of best solution
-    if plot_best_history is not None:
-        x_coords = plot_best_history[:, 0]
-        y_coords = plot_best_history[:, 1]
-        plt.plot(x_coords, y_coords, linestyle='-', marker='x', markersize=8, color='red', label='Best Solution Trajectory', 
-                 alpha=0.85, zorder=2)
-        plt.scatter(x_coords[0], y_coords[0], color='cyan', marker='d', s=300, label='Initial Best Solution', alpha=0.8, zorder=5)
-        plt.scatter(x_coords[-1], y_coords[-1], color='cyan', marker='X', s=350, label='Final Best Solution', alpha=0.8, zorder=5)
+        if original_dims == 2:
+            # evaluate objective function over 2D grid
+            Z = obj_function(xy_coords).reshape(X.shape) 
+            plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
+            plt.colorbar(label='Objective Value')
+        
+        if plot_pop_history is not None:
+            indices_to_plot = np.random.choice(plot_pop_history.shape[1], min(num_to_plot, plot_pop_history.shape[1]), replace=False)
+            
+            for i in indices_to_plot:
+                x_coords = plot_pop_history[:, i, 0]
+                y_coords = plot_pop_history[:, i, 1]
+                plt.plot(x_coords, y_coords, linestyle='-', marker='o', markersize=3, alpha=0.67, zorder=1)
     
-    plt.legend(fontsize=10,markerscale=0.67)
-    plt.grid(False)
-    plt.show()
+        # plot path of best solution
+        if plot_best_history is not None:
+            x_coords = plot_best_history[:, 0]
+            y_coords = plot_best_history[:, 1]
+            plt.plot(x_coords, y_coords, linestyle='-', marker='x', markersize=8, color='red', label='Best Solution Trajectory', 
+                     alpha=0.85, zorder=2)
+            plt.scatter(x_coords[0], y_coords[0], color='cyan', marker='d', s=300, label='Initial Best Solution', alpha=0.8, zorder=5)
+            plt.scatter(x_coords[-1], y_coords[-1], color='cyan', marker='X', s=350, label='Final Best Solution', alpha=0.8, zorder=5)
+        
+        plt.legend(fontsize=10,markerscale=0.67)
+        plt.grid(False)
+        plt.show()
 
 
 ### evolution algorithm ###
