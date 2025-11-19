@@ -126,7 +126,7 @@ def plot_mutations(n_points=100000):
             plt.show()
 
 
-def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_plot):
+def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_plot, plot_contour):
     '''
     Plots the solution position history.
     '''
@@ -187,16 +187,23 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
             plt.ylabel('Principal Component 1')
         plt.title('Solution Trajectories')
 
-        if original_dims == 2:
+        if (original_dims == 2) & plot_contour:
             # objective function contour plot
             x = np.linspace(x_min, x_max, 100)
             y = np.linspace(y_min, y_max, 100)
             X, Y = np.meshgrid(x, y)
             xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
             
-            # evaluate objective function over 2D grid
+            # evaluate objective function over 2D grid, log scale in case large orders of magnitude 
             Z = obj_function(xy_coords).reshape(X.shape)
             Z = np.log10(Z + 1e-6)
+            Z[~np.isfinite(Z)] = np.nanmax(Z[np.isfinite(Z)]) * 1.1 if np.any(np.isfinite(Z)) else 0
+            
+            # remove 5% worst outliers and clip for visualization
+            z_min_clip = np.percentile(Z.flatten(), 5)
+            z_max_clip = np.percentile(Z.flatten(), 95)
+            Z_clipped = np.clip(Z, z_min_clip, z_max_clip)
+            
             plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
             plt.colorbar(label='Objective Value')
         
@@ -507,7 +514,7 @@ def optimize(func, bounds, args=(),
               init='sobol', popsize=None, maxiter=100,
               entangle_rate=0.33, polish=True,
               patience=np.inf, vectorized=False, 
-              verbose=True, num_to_plot=10,
+              verbose=True, num_to_plot=10, plot_contour=False,
               hds_weights=None,
               seed=None):
     '''
@@ -732,7 +739,7 @@ def optimize(func, bounds, args=(),
         # plotting
         print()
         try:
-            plot_trajectories(func, pop_history, best_history, bounds, num_to_plot)
+            plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour)
 
         except Exception as e:
             print(f'Failed to generate plots: {e}')
