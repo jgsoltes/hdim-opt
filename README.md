@@ -1,6 +1,6 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-A modern optimization suite for complex, high-dimensional problems. This package provides state-of-the-art algorithms to accelerate convergence, including the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
+An optimization suite for complex, high-dimensional problems. This package provides algorithms to accelerate convergence, including the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
 
 ---
 
@@ -13,7 +13,7 @@ pip install hdim-opt
 ```
 
 #### QUASAR Optimizer (Quasi-Adaptive Search with Asymptotic Reinitialization)
-**QUASAR** is a quantum-inspired evolutionary algorithm, highly efficient for minimizing complex high-dimensional, non-differentiable, and non-parametric objective functions.
+**QUASAR** is a quantum-inspired evolutionary algorithm, efficient for minimizing complex high-dimensional, non-differentiable, and non-parametric objective functions.
 
 * Benefit: Statistically significant improvements in convergence speed and solution quality compared to contemporary optimizers.
 
@@ -38,9 +38,9 @@ solution, fitness = hdim_opt.quasar(func=obj_func, bounds=bounds)
 ```
 
 ### HDS Sampler (Hyperellipsoid Density Sampling)
-**HDS** is a non-uniform Quasi-Monte Carlo sampling method specifically designed to exploit promising regions of the search space.
+**HDS** is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the search space.
 
-* Benefit: Provides control over the sample distribution, and results in higher average optimization solution quality when used for population initialization compared to uniform QMC methods. 
+* Benefit: Provides control over the sample distribution. Results in higher average optimization solution quality when used for population initialization compared to uniform QMC methods. 
 
 * Reference: See experimental trials and analysis: [https://arxiv.org/abs/2511.07836].
 
