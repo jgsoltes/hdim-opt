@@ -186,16 +186,17 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
             plt.xlabel('Principal Component 0')
             plt.ylabel('Principal Component 1')
         plt.title('Solution Trajectories')
-        
-        # objective function contour plot
-        x = np.linspace(x_min, x_max, 100)
-        y = np.linspace(y_min, y_max, 100)
-        X, Y = np.meshgrid(x, y)
-        xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
 
         if original_dims == 2:
+            # objective function contour plot
+            x = np.linspace(x_min, x_max, 100)
+            y = np.linspace(y_min, y_max, 100)
+            X, Y = np.meshgrid(x, y)
+            xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
+            
             # evaluate objective function over 2D grid
-            Z = obj_function(xy_coords).reshape(X.shape) 
+            Z = obj_function(xy_coords).reshape(X.shape)
+            Z = np.log10(Z + 1e-6)
             plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
             plt.colorbar(label='Objective Value')
         

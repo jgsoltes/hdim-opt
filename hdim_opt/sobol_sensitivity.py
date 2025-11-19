@@ -13,6 +13,7 @@ def sens_analysis(func, bounds, n_samples=2**10,
         ) from e
     
     # define input parameters and their ranges
+    bounds = np.array(bounds)
     num_params = bounds.shape[0]
     if param_names == None:
         param_names = range(0,num_params)
