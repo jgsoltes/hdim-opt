@@ -1,16 +1,18 @@
-def sens_analysis(func, bounds, n_samples=2**10, param_names=None, verbose=True, log_scale=True):
+def sens_analysis(func, bounds, n_samples=2**10, 
+                  kwargs=None, param_names=None, 
+                  verbose=True, log_scale=True):
     try:
         import numpy as np
         from SALib.sample import sobol as sobol_sample
         from SALib.analyze import sobol as sobol_analyze
         import pandas as pd
+        from functools import partial
     except ImportError as e:
         raise ImportError(
-            f"Sensitivity analysis requires dependencies: (SALib, pandas)."
+            f"Sensitivity analysis requires dependencies: (SALib, pandas, functools)."
         ) from e
     
     # define input parameters and their ranges
-    bounds = np.array(bounds)
     num_params = bounds.shape[0]
     if param_names == None:
         param_names = range(0,num_params)
@@ -27,12 +29,23 @@ def sens_analysis(func, bounds, n_samples=2**10, param_names=None, verbose=True,
         print(f'Generating {n_samples:,.0f} Sobol samples for sensitivity analysis.')
     param_values = sobol_sample.sample(problem, n_samples)
 
+    # kwargs for the objective function
+    if kwargs:
+        func = partial(func, **kwargs)
+        
     # evaluate the samples
     values = func(param_values) 
     
     # running sensitivity analysis
     print('Running sensitivity analysis.')
     Si = sobol_analyze.analyze(problem, values, calc_second_order=True, print_to_console=False)
+
+    # calculate S2 sensitivities
+    # convert S2 indices to dataframe to process easier
+    S2_matrix = Si['S2']
+    S2_df = pd.DataFrame(S2_matrix, index=param_names, columns=param_names)
+    S2_df = S2_df.fillna(S2_df.T)
+    mask = np.tril(np.ones_like(S2_df, dtype=bool))
 
     if verbose:
         # import
@@ -59,7 +72,7 @@ def sens_analysis(func, bounds, n_samples=2**10, param_names=None, verbose=True,
                    xerr=Si['S1_conf'], 
                    label='First-order ($S_1$)',
                    color='cornflowerblue',
-                    alpha=1,
+                   alpha=1,
                    ecolor='lightgray',
                    capsize=2.5,
                    edgecolor='black')
@@ -69,10 +82,10 @@ def sens_analysis(func, bounds, n_samples=2**10, param_names=None, verbose=True,
                    xerr=Si['ST_conf'], 
                    label='Total-order ($S_T$)',
                    color='violet', 
-                   ecolor='white',
+                   ecolor='lightgray',
                    alpha=0.75, 
                    capsize=2.5,
-                   edgecolor='lightgray')
+                   edgecolor='black')
             axs[0].set_title('Sensitivity Indices ($S_1$, $S_T$)')
             if log_scale:
                 axs[0].set_xscale('log')
@@ -82,12 +95,6 @@ def sens_analysis(func, bounds, n_samples=2**10, param_names=None, verbose=True,
             axs[0].grid(False)
             axs[0].set_yticks(index)
             axs[0].set_yticklabels(param_names, ha='right')
-            
-            # convert S2 indices to dataframe to process easier
-            S2_matrix = Si['S2']
-            S2_df = pd.DataFrame(S2_matrix, index=param_names, columns=param_names)
-            S2_df = S2_df.fillna(S2_df.T)
-            mask = np.tril(np.ones_like(S2_df, dtype=bool))
             
             # heatmap of second order indices
             sns.heatmap(data=S2_df, mask=mask, cmap='berlin', cbar_kws={'label': 'Second-order Index ($S_2$)'},ax=axs[1]) # magma
