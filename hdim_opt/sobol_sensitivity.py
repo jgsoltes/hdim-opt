@@ -6,13 +6,13 @@ def sens_analysis(func, bounds, n_samples=2**10,
         - Perform Sobol sensitivity analysis using the target function.
         - Work in progress.
     Inputs:
-        - func:
-        - bounds:
-        n_samples: Number of Sobol samples to generate.
-        kwargs: Keyword arguments (dictionary) for objective function.
-        param_names: Optional parameter names for each dimension.
-        verbose: Boolean to display plots.
-        log_scale: Boolean to log-scale plots.
+        - func: Objective function (Problem) to analyze.
+        - bounds: Parameter space bounds, as an array of tuples.
+        - n_samples: Number of Sobol samples to generate.
+        - kwargs: Keyword arguments (dictionary) for objective function.
+        - param_names: Optional parameter names for each dimension.
+        - verbose: Boolean to display plots.
+        - log_scale: Boolean to log-scale plots.
     Outputs:
         - Si: Full sensitivity indices and confidences.
         - S2_matrix: Matrix of S2 relationship sensitivity indices.
@@ -25,9 +25,7 @@ def sens_analysis(func, bounds, n_samples=2**10,
         import pandas as pd
         from functools import partial
     except ImportError as e:
-        raise ImportError(
-            f"Sensitivity analysis requires dependencies: (SALib, pandas, functools)."
-        ) from e
+        raise ImportError(f'Sensitivity analysis requires dependencies: (SALib, pandas, functools).') from e
     
     # define input parameters and their ranges
     bounds = np.array(bounds)
@@ -71,9 +69,7 @@ def sens_analysis(func, bounds, n_samples=2**10,
             import matplotlib.pyplot as plt
             import seaborn as sns
         except ImportError as e:
-            raise ImportError(
-                f"Plotting requires dependencies: (matplotlib, seaborn)."
-                ) from e
+            raise ImportError(f'Plotting requires dependencies: (matplotlib, seaborn).') from e
         
         # visualization parameters
         with plt.style.context('dark_background'):

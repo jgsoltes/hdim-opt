@@ -187,6 +187,12 @@ def sample(n_samples, bounds,
         - n_samples: Number of samples to generate.
         - bounds: Bounds of the parameter range.
         - weights: Gaussian weights to influence clusters and final sample locations.
+            - Dictionary: 
+                weights = {
+                        0 : {'center': center, 'std': std},
+                        1 : {'center': center, 'std': std}
+                    }
+                where center and std are the desired center ane standard deviation for a given dimension.
         - normalize: Boolean to scale samples to the original parameter space, or leave normalized from [0,1].
         - n_ellipsoids: Number of hyperellipsoids to sample.
             - Replaces and skips the Agglomerative Hierarchical Clustering (AHC) step.

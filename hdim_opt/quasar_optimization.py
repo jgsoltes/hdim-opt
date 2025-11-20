@@ -7,7 +7,9 @@ epsilon = 1e-12 # small epsilon to prevent zero-point errors
 ### test functions, for local testing ###
 
 def rastrigin(x, vectorized=False):
-    '''Rastrigin test function, for local testing.'''
+    '''
+    Rastrigin test function, for local testing.
+    '''
     
     A = 10 # rastrigin coefficient
     
@@ -25,7 +27,9 @@ def rastrigin(x, vectorized=False):
     return rastrigin_value
 
 def ackley(x, vectorized=False):
-    '''Ackley test function, for local testing.'''
+    '''
+    Ackley test function, for local testing.
+    '''
     
     # check if x is a matrix (2D) or a single vector (1D)
     matrix_flag = x.ndim > 1
@@ -45,7 +49,9 @@ def ackley(x, vectorized=False):
     return ackley_val
 
 def sphere(x, vectorized=False):
-    '''Sphere test function, for local testing.'''
+    '''
+    Sphere test function, for local testing.
+    '''
     
     # check if x is a matrix (2D) or a single vector (1D)
     matrix_flag = x.ndim > 1
@@ -234,7 +240,12 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
 def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     '''
     Objective:
-        - Initializes a population using Sobol, Adaptive Hyperellipsoid, or a custom population.
+        - Initializes the population using Sobol, Hyperellipsoid Density, Latin Hypercube, Random, or a custom population.
+    Inputs:
+        - popsize: Population size to generate.
+        - bounds: Parameter space bounds.
+        - init: Sampling method. ['sobol','hds','lhs','random'], or a custom array.
+    
     '''
 
     # misc extracts
@@ -244,7 +255,7 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     if isinstance(init, str):
         init = init.lower() # ensure lowercase string
         
-        # generate adaptive hypersphere sequence
+        # generate hyperellipsoid density sequence
         if init == 'hds':
             # import hds
             try:
@@ -292,10 +303,10 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
     '''
     Objective:
         - Evolves the population for the current generation.
-            - Dynamic crossover rate:
+            - Rank-based crossover rate:
                 - Worst solution CR = 1.0, best solution CR = 0.33.
             - Local & global mutation factor distributions.
-                - Can be displayed using the 'plot_mutations' function.
+                - Can be displayed using 'plot_mutations()' function.
             - Greedy selection:
                 - New solution vector is chosen as the better between of trial and current vectors.
             - Covariance reinitialization is handled externally.
@@ -520,22 +531,33 @@ def optimize(func, bounds, args=(),
     '''
     Objective:
         - Searches for the optimal solution to minimize the objective function.
-        - Conceptualizes quantum stellar particles searching for the most stable energy state.
-        - Mutation factors can be visualized with plot_mutations().
+        - Conceptualizes quantum particles searching for stability.
+        - Test functions available for local testing, called as quasar_optimization.function: 
+            - rastrigin 
+            - ackley 
+            - sphere
+            - (plot_contour=True recommended when using these)
     Inputs:
         - func: Objective function to minimize.
         - bounds: Parameter bounds.
         - *args: Input arguments for objective function.
         - init: Initial population sampling method. 
-            - Options are 'sobol', 'random', 'hds', 'lhs', or a custom sample sequence.
-                - Defaults to 'sobol'.
-                - 'hds' to accelerate convergence with slower initialization.
+            - Defaults to 'sobol'. Recommended power-of-2 population sizes for maximum uniformity.
+            - Options are: 
+                - 'sobol': Sobol sampling.
+                - 'random': Uniform random sampling.
+                - 'hds': Hyperellipsoid Density Sampling.
+                - 'lhs': Latin Hypercube Sampling.
+                - Custom population matrix: 
+                    - NxD array of trial solution vectors (N) for each dimension (D).
         - popsize: Number of solution vectors to evolve. 
             - Defaults to 10 * n_dimensions.
         - maxiter: Number of generations to evolve.
+            - Defaults to 100.
         - entangle_rate: Probability of solutions using the local Spooky-Best mutation strategy.
             - Defaults to 0.33. This causes to the three mutation strategies to be applied equally.
-            - Decreasing leads to higher exploration.
+            - Decreasing (theoretically) leads to higher exploration.
+            - Mutation factors can be visualized with the plot_mutations() function.
         - patience: Number of generations without improvement before early convergence.
         - polish: Final polishing step using 'L-BFGS-B' minimization.
         - vectorized: Boolean to accept vectorized objective functions.
@@ -575,7 +597,7 @@ def optimize(func, bounds, args=(),
 
     # initialization error
     if (type(init) == str) and init not in ['sobol','hds','random','lhs']:
-        raise ValueError("Initial sampler must be one of ['sobol','random','ahs','lhs'], or a custom population.")
+        raise ValueError("Initial sampler must be one of ['sobol','random','hds','lhs'], or a custom population.")
     
     # patience error
     if patience <= 1:

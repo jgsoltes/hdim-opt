@@ -6,17 +6,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.0.6" # match __version__ in __init__.py
-description = "Optimization toolkit for complex, high-dimensional, non-differentiable problems."
+version = "1.0.7" # match __version__ in __init__.py
+description = "Optimization toolkit for high-dimensional, non-differentiable problems."
 readme = {file = "README.md", content-type = "text/markdown"}
+
 authors = [
-  { name="Julian Soltes", email="jsoltes@regis.edu"}
+  {name="Julian Soltes", email="jsoltes@regis.edu"}
 ]
-author = "Julian Soltes"
-author-email = "jsoltes@regis.edu"
-maintainers = [
-  { name = "Julian Soltes", email = "jsoltes@regis.edu"}
-]
+
 license = { text = "MIT" }
 requires-python = ">=3.8"
 keywords = ["optimization", "high-dimensional", "sampling", "QUASAR", "HDS"]
@@ -45,6 +42,9 @@ sensitivity = [
     "pandas",
     "SALib"
 ]
+
+[project.urls]
+Repository = "https://github.com/jgsoltes/hdim_opt"
 
 [tool.setuptools.packages.find]
 where = ["."]

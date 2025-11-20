@@ -1,6 +1,6 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-An optimization suite for complex, high-dimensional problems. This package provides algorithms to accelerate convergence, including the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
+A modern optimization suite for complex, high-dimensional problems. This package provides algorithms to accelerate convergence, including the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
 
 ---
 
@@ -25,13 +25,13 @@ Quick Use Example:
 import hdim_opt
 import numpy as np
 
-def obj_func(x):
-    y = np.sum(x**2)
-    return y
-
 # define search space
 n_dim = 100
 bounds = [(-100,100)] * n_dim
+
+def obj_func(x):
+    y = np.sum(x**2)
+    return y
 
 # run QUASAR
 solution, fitness = hdim_opt.quasar(func=obj_func, bounds=bounds)
@@ -49,12 +49,18 @@ Quick Use Example:
 import hdim_opt
 
 # define search space
-n_dim = 100
-bounds = [(-100,100)] * n_dim
-n_samples = 1000
+n_dim = 2
+bounds = [(0,1)] * n_dim
+
+# optional weights
+weights = {
+            0 : {'center': 0.25, 'std': 0.33},
+            1 : {'center': 0.25, 'std': 0.33}
+            }
 
 # generate HDS samples
-hds_samples = hdim_opt.hds(n_samples, bounds)
+hds_samples = hdim_opt.hds(n_samples=10000, bounds=bounds, 
+                    weights=weights, verbose=True)
 ```
 
 Additional functions include: 
