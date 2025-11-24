@@ -6,10 +6,10 @@ A modern optimization suite for complex, high-dimensional problems. This package
 
 ## Installation
 
-Installed via `hdim-opt` directly from PyPI:
+Installed via `hdim_opt` directly from PyPI:
 
 ```bash
-pip install hdim-opt
+pip install hdim_opt
 ```
 
 #### QUASAR Optimizer (Quasi-Adaptive Search with Asymptotic Reinitialization)
