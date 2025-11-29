@@ -1,4 +1,4 @@
-def sens_analysis(func, bounds, n_samples=2**10, 
+def sens_analysis(func, bounds, n_samples=None, 
                   kwargs=None, param_names=None,
                   verbose=True, log_scale=True):
     '''
@@ -16,7 +16,8 @@ def sens_analysis(func, bounds, n_samples=2**10,
         - Si: Full sensitivity indices and confidences.
         - S2_matrix: Matrix of S2 relationship sensitivity indices.
     '''
-    
+
+    # imports
     try:
         import numpy as np
         from SALib.sample import sobol as sobol_sample
@@ -26,15 +27,20 @@ def sens_analysis(func, bounds, n_samples=2**10,
     except ImportError as e:
         raise ImportError(f'Sensitivity analysis requires dependencies: (SALib, pandas, functools).') from e
     
+    
     # define input parameters and their ranges
     bounds = np.array(bounds)
-    num_params = bounds.shape[0]
+    n_params = bounds.shape[0]
     if param_names == None:
-        param_names = range(0,num_params)
+        param_names = range(0,n_params)
+
+    # scale default n_samples by dimension (power of 2)
+    if n_samples == None:
+        n_samples = int(2**np.ceil(np.log2(10*n_params)))
 
     # define problem
     problem = {
-        'num_vars': num_params,
+        'num_vars': n_params,
         'names': param_names,
         'bounds' : bounds
         }
@@ -75,7 +81,7 @@ def sens_analysis(func, bounds, n_samples=2**10,
         
         # define bar width and positions
         bar_width = 0.35
-        index = np.arange(num_params)
+        index = np.arange(n_params)
         
         # plot S1 (first order) sensitivities
         axs[0].barh(index - bar_width/2, Si['S1'], bar_width,
