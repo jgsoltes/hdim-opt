@@ -29,13 +29,9 @@ bounds = [(-100,100)] * n_dimensions
 n_samples = 1000
 obj_func = h.test_functions.rastrigin
 
-# Optimization
+# Functions
 solution, fitness = h.quasar(obj_func, bounds)
-
-# Analysis
 sens_matrix = h.sensitivity(obj_func, bounds)
-
-# Sample Sequences
 hds_samples = h.hds(n_samples, bounds)
 sobol_samples = h.sobol(n_samples, bounds)
 ```
