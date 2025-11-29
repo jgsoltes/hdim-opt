@@ -1,10 +1,9 @@
 def sens_analysis(func, bounds, n_samples=2**10, 
-                  kwargs=None, param_names=None, 
+                  kwargs=None, param_names=None,
                   verbose=True, log_scale=True):
     '''
     Objective:
-        - Perform Sobol sensitivity analysis using the target function.
-        - Work in progress.
+        - Perform Sobol sensitivity analysis on the vectorized objective function.
     Inputs:
         - func: Objective function (Problem) to analyze.
         - bounds: Parameter space bounds, as an array of tuples.
@@ -70,51 +69,48 @@ def sens_analysis(func, bounds, n_samples=2**10,
             import seaborn as sns
         except ImportError as e:
             raise ImportError(f'Plotting requires dependencies: (matplotlib, seaborn).') from e
+            
+        # plot 1: first-order (S1) and total-order (ST) indices
+        sens_plot, axs = plt.subplots(2,1,figsize=(9, 13)) 
         
-        # visualization parameters
-        with plt.style.context('dark_background'):
-            
-            # plot 1: first-order (S1) and total-order (ST) indices
-            sens_plot, axs = plt.subplots(2,1,figsize=(9, 13)) 
-            
-            # define bar width and positions
-            bar_width = 0.35
-            index = np.arange(num_params)
-            
-            # plot S1 (first order) sensitivities
-            axs[0].barh(index - bar_width/2, Si['S1'], bar_width,
-                   xerr=Si['S1_conf'], 
-                   label='First-order ($S_1$)',
-                   color='cornflowerblue',
-                   alpha=1,
-                   ecolor='lightgray',
-                   capsize=2.5,
-                   edgecolor='black')
-            
-            # plot ST (total order) sensitivities
-            axs[0].barh(index + bar_width/2, Si['ST'], bar_width,
-                   xerr=Si['ST_conf'], 
-                   label='Total-order ($S_T$)',
-                   color='violet', 
-                   ecolor='lightgray',
-                   alpha=0.75, 
-                   capsize=2.5,
-                   edgecolor='black')
-            axs[0].set_title('Sensitivity Indices ($S_1$, $S_T$)')
-            if log_scale:
-                axs[0].set_xscale('log')
-            axs[0].set_xlabel('Sensitivity Index')
-            axs[0].set_ylabel('Parameter')
-            axs[0].legend(loc='upper right')
-            axs[0].grid(False)
-            axs[0].set_yticks(index)
-            axs[0].set_yticklabels(param_names, ha='right')
-            
-            # heatmap of second order indices
-            sns.heatmap(data=S2_df, mask=mask, cmap='berlin', cbar_kws={'label': 'Second-order Index ($S_2$)'},ax=axs[1]) # magma
-            axs[1].set_title('Second-order Interactions ($S_2$)')
-            axs[1].invert_yaxis()
-            sens_plot.tight_layout() 
-            plt.show()
+        # define bar width and positions
+        bar_width = 0.35
+        index = np.arange(num_params)
+        
+        # plot S1 (first order) sensitivities
+        axs[0].barh(index - bar_width/2, Si['S1'], bar_width,
+               xerr=Si['S1_conf'], 
+               label='First-order ($S_1$)',
+               # color='cornflowerblue',
+               alpha=1,
+               # ecolor='lightgray',
+               capsize=2.5)
+               # edgecolor='black')
+        
+        # plot ST (total order) sensitivities
+        axs[0].barh(index + bar_width/2, Si['ST'], bar_width,
+               xerr=Si['ST_conf'], 
+               label='Total-order ($S_T$)',
+               # color='violet', 
+               # ecolor='lightgray',
+               alpha=0.75, 
+               capsize=2.5)
+               # edgecolor='black')
+        axs[0].set_title('Sensitivity Indices ($S_1$, $S_T$)')
+        if log_scale:
+            axs[0].set_xscale('log')
+        axs[0].set_xlabel('Sensitivity Index')
+        axs[0].set_ylabel('Parameter')
+        axs[0].legend(loc='upper right')
+        axs[0].grid(False)
+        axs[0].set_yticks(index)
+        axs[0].set_yticklabels(param_names, ha='right')
+        
+        # heatmap of second order indices
+        sns.heatmap(data=S2_df, mask=mask, cbar_kws={'label': 'Second-order Index ($S_2$)'},ax=axs[1]) # magma
+        axs[1].set_title('Second-order Interactions ($S_2$)')
+        axs[1].invert_yaxis()
+        sens_plot.tight_layout() 
+        plt.show()
     
     return Si, S2_matrix

@@ -2,6 +2,13 @@
 
 A modern optimization suite for complex, high-dimensional problems. This package provides algorithms to accelerate convergence, including the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
 
+The primary functions, below, are all executable with a single line. They each use the same three core parameters: [obj_function, bounds, n_samples].
+* quasar: QUASAR optimization.
+* hds: Generate non-uniform HDS sequence.
+* sensitivity: Sobol sensitivity analysis (via SALib).
+* sobol: Generate uniform Sobol sequence (via SciPy).
+
+
 ---
 
 ## Installation
@@ -64,5 +71,7 @@ hds_samples = hdim_opt.hds(n_samples=10000, bounds=bounds,
 ```
 
 Additional functions include: 
-* sobol() to generate uniform Sobol samples (via SciPy)
-* sensitivity() to perform Sobol sensitivity analysis (via SALib) (work in progress)
+* Sobol sampling (via SciPy):
+    * sobol(n_samples, bounds)
+* Sensitivity analysis (via SALib): 
+    * sensitivity(func, bounds)

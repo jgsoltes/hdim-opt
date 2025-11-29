@@ -3,240 +3,6 @@ import numpy as np
 from scipy import stats
 epsilon = 1e-12 # small epsilon to prevent zero-point errors
 
-
-### test functions, for local testing ###
-
-def rastrigin(x, vectorized=False):
-    '''
-    Rastrigin test function, for local testing.
-    '''
-    
-    A = 10 # rastrigin coefficient
-    
-    # check if x is a matrix (2D) or a single vector (1D)
-    matrix_flag = x.ndim > 1
-    if matrix_flag:
-        # for x of (popsize, dimensions)
-        n = x.shape[1]
-        rastrigin_value = A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x), axis=1)
-    else:
-        # for single solution vector x
-        n = x.shape[0]
-        rastrigin_value = A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
-    
-    return rastrigin_value
-
-def ackley(x, vectorized=False):
-    '''
-    Ackley test function, for local testing.
-    '''
-    
-    # check if x is a matrix (2D) or a single vector (1D)
-    matrix_flag = x.ndim > 1
-    if matrix_flag:
-        # for x of (popsize, dimensions)
-        n = x.shape[1]
-        arg1 = -0.2 * np.sqrt(1/n * np.sum(x**2, axis=1))
-        arg2 = 1/n * np.sum(np.cos(2 * np.pi * x), axis=1)
-    else:
-        # for single solution vector x
-        n = x.shape[0]
-        arg1 = -0.2 * np.sqrt(1/n * np.sum(x**2))
-        arg2 = 1/n * np.sum(np.cos(2 * np.pi * x))
-    
-    ackley_val = -20 * np.exp(arg1) - np.exp(arg2) + 20 + np.exp(1)
-    
-    return ackley_val
-
-def sphere(x, vectorized=False):
-    '''
-    Sphere test function, for local testing.
-    '''
-    
-    # check if x is a matrix (2D) or a single vector (1D)
-    matrix_flag = x.ndim > 1
-    if matrix_flag:
-        sphere_val = np.sum(x**2, axis=1)
-    else:
-        sphere_val = np.sum(x**2)
-    
-    return sphere_val
-
-def shifted_function(func, shift_vector, vectorized=False):
-    '''
-    Objective:
-        - Shifts the global optimum of the given test function.
-    
-    Inputs:
-        - func: Original test function.
-        - shift_vector: 1D array of the new optimum.
-    
-    Outputs:
-        - shifted_func: New function with the shifted optimum.
-    '''
-    
-    def shifted_func(x, vectorized=False):
-        return func(x - shift_vector, vectorized=vectorized)
-    return shifted_func
-
-
-### verbose plotting functions ###
-
-def plot_mutations(n_points=100000):
-    '''
-    Plots the distribution of mutation factors for all mutation strategies.
-    '''
-
-    # ensure integer n_points
-    n_points = int(n_points)
-
-    # import matplotlib
-    import matplotlib.pyplot as plt
-
-    # mutation plot params
-    dimensions = 1 # for plotting
-    peak_loc = 0.5
-    initial_std_loc = 0.25
-    local_std = 0.33
-    
-    loc_signs = np.random.choice([-1.0, 1.0], size=(n_points, 1), p=[0.5, 0.5])
-    locs = loc_signs * peak_loc
-    base_mutations = np.random.normal(loc=0.0, scale=initial_std_loc, size=(n_points, dimensions))
-    global_muts = base_mutations + locs
-    global_muts_flat = global_muts.flatten()
-    
-    local_muts = np.random.normal(loc=0.0, scale=local_std, size=(n_points, dimensions))
-    local_muts_flat = local_muts.flatten()
-
-    with plt.style.context('dark_background'):
-        try: # in case seaborn is not imported
-            import seaborn as sns
-            sns.histplot(x=global_muts_flat, bins=50, edgecolor='black',stat='density',kde=True,color='deepskyblue',alpha=0.85,label='Global')
-            sns.histplot(x=local_muts_flat, bins=50, edgecolor='black',stat='density',kde=True,color='darkorange',alpha=0.85,label='Local')
-            plt.title('Mutation Factor Distribution',fontsize=16)
-            plt.xlabel('Mutation Factor',fontsize=15)
-            plt.ylabel('Frequency',fontsize=15)
-            plt.legend(fontsize=15)
-            
-            plt.tight_layout()
-            plt.show()
-        except ImportError:
-            plt.hist(global_muts_flat, bins=50, edgecolor='black',density=True,color='deepskyblue',alpha=0.85,label='Global')
-            plt.hist(local_muts_flat, bins=50, edgecolor='black',density=True,color='darkorange',alpha=0.85,label='Local')
-            plt.title('Mutation Factor Distribution',fontsize=16)
-            plt.xlabel('Mutation Factor',fontsize=15)
-            plt.ylabel('Frequency',fontsize=15)
-            plt.legend(fontsize=15)
-            
-            plt.tight_layout()
-            plt.show()
-
-
-def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_plot, plot_contour):
-    '''
-    Plots the solution position history.
-    '''
-    
-    from sklearn.decomposition import PCA
-    import matplotlib.pyplot as plt
-
-    # visualization params
-    with plt.style.context('dark_background'):
-    
-        original_dims = bounds.shape[0]
-        
-        # convert to arrays
-        plot_pop_history = np.array(pop_history)
-        plot_best_history = np.array(best_history)
-        
-        # ensure bounds array has more than 2 dimensions
-        if original_dims > 2:
-            pca = PCA(n_components=2)
-            
-            # reshape data to fit PCA
-            all_data = plot_pop_history.reshape(-1, original_dims)
-            
-            # fit PCA on population history
-            pca.fit(all_data)
-    
-            # reshape data
-            num_generations = plot_pop_history.shape[0]
-            popsize = plot_pop_history.shape[1]
-            
-            # transform and reshape dadta
-            plot_pop_history = pca.transform(all_data).reshape(num_generations, popsize, 2)
-            plot_best_history = pca.transform(plot_best_history)
-            
-            # adjust bounds
-            combined_transformed_data = np.concatenate([plot_pop_history.reshape(-1, 2), plot_best_history], axis=0)
-            
-            # ensure combined data is not empty
-            if combined_transformed_data.size > 0:
-                min_vals = np.min(combined_transformed_data, axis=0)
-                max_vals = np.max(combined_transformed_data, axis=0)
-                x_min, x_max = min_vals[0], max_vals[0]
-                y_min, y_max = min_vals[1], max_vals[1]
-            else:
-                x_min, x_max = -1, 1
-                y_min, y_max = -1, 1
-        
-        else:
-            x_min, x_max = bounds[0, 0], bounds[0, 1]
-            y_min, y_max = bounds[1, 0], bounds[1, 1]
-        
-        plt.figure(figsize=(9, 7))
-        if original_dims == 2:
-            plt.xlabel('Dimension 0')
-            plt.ylabel('Dimension 1')
-        else:
-            plt.xlabel('Principal Component 0')
-            plt.ylabel('Principal Component 1')
-        plt.title('Solution Trajectories')
-
-        if (original_dims == 2) & plot_contour:
-            # objective function contour plot
-            x = np.linspace(x_min, x_max, 100)
-            y = np.linspace(y_min, y_max, 100)
-            X, Y = np.meshgrid(x, y)
-            xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
-            
-            # evaluate objective function over 2D grid, log scale in case large orders of magnitude 
-            Z = obj_function(xy_coords).reshape(X.shape)
-            Z = np.log10(Z + 1e-6)
-            Z[~np.isfinite(Z)] = np.nanmax(Z[np.isfinite(Z)]) * 1.1 if np.any(np.isfinite(Z)) else 0
-            
-            # remove 5% worst outliers and clip for visualization
-            z_min_clip = np.percentile(Z.flatten(), 5)
-            z_max_clip = np.percentile(Z.flatten(), 95)
-            Z_clipped = np.clip(Z, z_min_clip, z_max_clip)
-            
-            plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
-            plt.colorbar(label='Objective Value')
-        
-        if plot_pop_history is not None:
-            indices_to_plot = np.random.choice(plot_pop_history.shape[1], min(num_to_plot, plot_pop_history.shape[1]), replace=False)
-            
-            for i in indices_to_plot:
-                x_coords = plot_pop_history[:, i, 0]
-                y_coords = plot_pop_history[:, i, 1]
-                plt.plot(x_coords, y_coords, linestyle='-', marker='o', markersize=3, alpha=0.67, zorder=1)
-    
-        # plot path of best solution
-        if plot_best_history is not None:
-            x_coords = plot_best_history[:, 0]
-            y_coords = plot_best_history[:, 1]
-            plt.plot(x_coords, y_coords, linestyle='-', marker='x', markersize=8, color='red', label='Best Solution Trajectory', 
-                     alpha=0.85, zorder=2)
-            plt.scatter(x_coords[0], y_coords[0], color='cyan', marker='d', s=300, label='Initial Best Solution', alpha=0.8, zorder=5)
-            plt.scatter(x_coords[-1], y_coords[-1], color='cyan', marker='X', s=350, label='Final Best Solution', alpha=0.8, zorder=5)
-        
-        plt.legend(fontsize=10,markerscale=0.67)
-        plt.grid(False)
-        plt.show()
-
-
-### evolution algorithm ###
-
 def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     '''
     Objective:
@@ -245,7 +11,8 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
         - popsize: Population size to generate.
         - bounds: Parameter space bounds.
         - init: Sampling method. ['sobol','hds','lhs','random'], or a custom array.
-    
+    Outputs:
+        - initial_population: Initial population to optimize.
     '''
 
     # misc extracts
@@ -299,7 +66,7 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
 
 def evolve_generation(obj_function, population, fitnesses, best_solution, 
                       bounds, entangle_rate, generation, maxiter, 
-                      vectorized, *args):
+                      vectorized, n_workers, constraints, constraint_penalty, *args, **kwargs):
     '''
     Objective:
         - Evolves the population for the current generation.
@@ -310,6 +77,7 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
             - Greedy selection:
                 - New solution vector is chosen as the better between of trial and current vectors.
             - Covariance reinitialization is handled externally.
+            - Constraints are applied as additional objective penalties.
     '''
 
     # crossover parameters
@@ -373,8 +141,24 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
         # clip trial vectors to bounds
         trial_vectors = np.clip(trial_vectors, bounds[:, np.newaxis, 0], bounds[:, np.newaxis, 1])
         
-        # steady-state elitism selection
-        trial_fitnesses = obj_function(trial_vectors.T, *args)
+        # calculate trial fitnesses
+        trial_fitnesses = obj_function(trial_vectors.T, *args, **kwargs)
+
+        # penalize constraints
+        if constraints:
+            try:
+                from .quasar_helpers import apply_penalty 
+            except ImportError:
+                from quasar_helpers import apply_penalty
+            trial_fitnesses = apply_penalty(
+                                        trial_fitnesses, 
+                                        trial_vectors, 
+                                        constraints,
+                                        constraint_penalty,
+                                        vectorized
+                                        )
+            
+        # greedy elitism selection
         selection_indices = trial_fitnesses < fitnesses
         
         new_population = np.where(selection_indices[np.newaxis, :], trial_vectors, population)
@@ -401,7 +185,7 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
         # local mutation factor
         local_mutation_std = 0.33
         local_mutation = np.random.normal(0.0, local_mutation_std, size=dimensions)
-
+        
         # adaptive crossover calculations
         sorted_indices = np.argsort(fitnesses)
         ranks = np.zeros_like(fitnesses)
@@ -412,6 +196,7 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
         adaptive_crossover_proba = np.maximum(adaptive_crossover_proba_raw, min_crossover_proba)
         
         # loop through each solution in population
+        trial_vectors = []
         for i in range(popsize):
             solution = population[i]
             current_fitness = fitnesses[i]
@@ -422,31 +207,57 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
 
             # apply mutations
             if np.random.rand() < entangle_rate:
-                mutant_vector = best_solution + local_mutation * (solution - entangled_partner) # original
+                mutant_vector = best_solution + local_mutation * (solution - entangled_partner)
             else:
                 # 50% chance of moving around current location
-                mutant_vector = solution + global_mutation * (best_solution - entangled_partner) # original
+                mutant_vector = solution + global_mutation * (best_solution - entangled_partner)
                 # 50% chance of moving to entangled partner
                 if np.random.rand() < 0.5:
-                    mutant_vector = entangled_partner + global_mutation * (solution - entangled_partner) # original
-            
+                    mutant_vector = entangled_partner + global_mutation * (solution - entangled_partner)
+
+            # calculate index values to crossover/recombine
             crossover_indices = np.random.rand(dimensions) < adaptive_crossover_proba[i]
             trial_vector = np.where(crossover_indices, mutant_vector, solution)
 
             # clip trial vectors to bounds
             trial_vector = np.clip(trial_vector, bounds[:, 0], bounds[:, 1])
+            trial_vectors.append(trial_vector)
 
-            # steady-state elitism selection
-            trial_fitness = obj_function(trial_vector, *args)
+        # create array of trial vectors
+        trial_vectors = np.array(trial_vectors)
+        if n_workers > 1:
+            try:
+                import functools
+                from concurrent.futures import ProcessPoolExecutor
+            except:
+                raise ImportError('Failed to import parallelization packages: functools, concurrent.futures.ProcessPoolExecutor.')
             
-            if trial_fitness < current_fitness:
-                new_population[i] = trial_vector
-                new_fitnesses[i] = trial_fitness
-            else:
-                new_population[i] = solution
-                new_fitnesses[i] = current_fitness
+            func_with_args = functools.partial(obj_function, *args, **kwargs)
+            with ProcessPoolExecutor(max_workers=n_workers) as executor:
+                # map() distributes the trial vectors to workers
+                trial_fitnesses = np.array(list(executor.map(func_with_args, trial_vectors)))
+        else:
+            # standard sequential calculations 
+            trial_fitnesses = np.array([obj_function(sol, *args, **kwargs) for sol in trial_vectors])
+
+        # penalize constraints
+        if constraints:
+            try:
+                from .quasar_helpers import apply_penalty 
+            except ImportError:
+                from quasar_helpers import apply_penalty
+            trial_fitnesses = apply_penalty(trial_fitnesses, trial_vectors, constraints, constraint_penalty, vectorized)
         
-        return new_population, new_fitnesses
+        # greedy selection (now vectorized)
+        selection_indices = trial_fitnesses < fitnesses
+
+        # if selection index: trial_fitnesses[i], else: fitnesses[i]
+        new_fitnesses = np.where(selection_indices, trial_fitnesses, fitnesses)
+
+        # apply selection indices row-wise to population
+        new_population = np.where(selection_indices.reshape(-1,1), trial_vectors, population)
+        
+    return new_population, new_fitnesses
 
 def covariance_reinit(population, current_fitnesses, bounds, vectorized):
     '''
@@ -521,58 +332,182 @@ def covariance_reinit(population, current_fitnesses, bounds, vectorized):
 
     return population
 
-def optimize(func, bounds, args=(), 
+def polish_solution(
+            func=None, best_solution=None, best_fitness=None, bounds=None, popsize=None, maxiter=None, 
+            vectorized=None, constraints=None, args=None, kwargs=None, 
+            polish_minimizer=None, verbose=None):
+    try:
+        from scipy.optimize import minimize
+        # handles a single 1D vector input (x) and returns a scalar fitness value.
+        def polish_obj_func(x):
+            '''Wrapper function to handle vectorized and non-vectorized inputs for SciPy minimize.'''
+            
+            if vectorized:
+                # reshape for vectorized objective functions, take first element for (N,)
+                return func(x.reshape(1,-1), *args, **kwargs)[0]
+            else:
+                # if not vectorized, x is already in the correct shape
+                return func(x, *args, **kwargs)
+
+        # constraints
+        scipy_constraints = []
+        if constraints:
+            # loop through constraints
+            for con_name, con_spec in constraints.items():
+                con_func = con_spec[0]
+                con_type = con_spec[1]
+                con_rhs = con_spec[2]
+
+                # vectorized with constraints case
+                if vectorized:
+                    try: 
+                        from .quasar_helpers import scalar_constraint_wrapper
+                    except:
+                        from quasar_helpers import scalar_constraint_wrapper
+                    
+                    # apply wrapper function to handle 1D input from minimize
+                    constraint_fun = lambda x: scalar_constraint_wrapper(x, con_func)
+                else:
+                    constraint_fun = con_func
+
+                if con_type == '<=':
+                    # inequality: g(x) <= 0
+                    scipy_constraints.append({
+                        'type': 'ineq', 
+                        'fun': lambda x: con_rhs - constraint_fun(x),
+                        })
+                elif con_type == '>=':
+                    # inequality: g(x) >= 0 
+                    scipy_constraints.append({
+                        'type': 'ineq', 
+                        'fun': lambda x: constraint_fun(x) - con_rhs,
+                        }),
+                elif con_type == '==':
+                    # equality: g(x) = C [g(x) - C = 0]
+                    scipy_constraints.append({
+                        'type': 'eq', 
+                        # fun: lambda x: g(x) - C
+                        'fun': lambda x: constraint_fun(x) - con_rhs,
+                        })
+                    
+            # use trust-constr when constraints are present
+            if polish_minimizer is None:
+                polish_minimizer = 'SLSQP' 
+        else:
+            # otherwise default to Powell
+            if polish_minimizer is None:
+                polish_minimizer = 'Powell'
+
+        polish_iterations = int(np.minimum(500,np.sqrt(popsize*maxiter)))
+
+        # minimize
+        if verbose:
+            print(f'Polishing solution with {polish_minimizer}.')
+        polish_result = minimize(
+                                polish_obj_func, best_solution, method = polish_minimizer,
+                                bounds=bounds, options={'maxiter': polish_iterations},
+                                constraints = scipy_constraints if constraints else()
+        )
+    
+        # update best solution
+        if polish_result.success and polish_result.fun < best_fitness:
+            best_fitness_polished = polish_result.fun
+            best_solution_polished = polish_result.x
+        else:
+            best_fitness_polished = best_fitness
+            best_solution_polished = best_solution
+
+    except Exception as e:
+        print(f'Polishing failed: {e}.')
+        
+        return best_solution, best_fitness
+        
+    return best_solution_polished, best_fitness_polished
+
+
+# main optimize function
+
+def optimize(func, bounds, args=(),
               init='sobol', popsize=None, maxiter=100,
-              entangle_rate=0.33, polish=True,
-              patience=np.inf, vectorized=False, 
-              verbose=True, num_to_plot=10, plot_contour=False,
-              hds_weights=None,
-              seed=None):
+              entangle_rate=0.33, polish=True, polish_minimizer=None,
+              patience=np.inf, vectorized=False,
+              hds_weights=None, kwargs={},
+              constraints=None, constraint_penalty=1e6, 
+              verbose=True, num_to_plot=10, plot_contour=True,
+              workers=1, seed=None
+              ):
     '''
     Objective:
-        - Searches for the optimal solution to minimize the objective function.
-        - Conceptualizes quantum particles searching for stability.
-        - Test functions available for local testing, called as quasar_optimization.function: 
-            - rastrigin 
-            - ackley 
-            - sphere
-            - (plot_contour=True recommended when using these)
+        - Finds the optimal solution for a given objective function.
+        - Designed for non-differentiable, high-dimensional problems.
+        - Test functions available for local testing, called as hdim_opt.test_functions.function_name.
+            - Existing test functions: [rastrigin, ackley, sinusoid, sphere]
+            
     Inputs:
         - func: Objective function to minimize.
         - bounds: Parameter bounds.
-        - *args: Input arguments for objective function.
+        - args: Tuple/list of positional arguments for the objective function.
+        - kwargs: Dictionary of keyword arguments for the objective function.
+
         - init: Initial population sampling method. 
-            - Defaults to 'sobol'. Recommended power-of-2 population sizes for maximum uniformity.
-            - Options are: 
-                - 'sobol': Sobol sampling.
-                - 'random': Uniform random sampling.
-                - 'hds': Hyperellipsoid Density Sampling.
-                - 'lhs': Latin Hypercube Sampling.
-                - Custom population matrix: 
-                    - NxD array of trial solution vectors (N) for each dimension (D).
-        - popsize: Number of solution vectors to evolve. 
-            - Defaults to 10 * n_dimensions.
-        - maxiter: Number of generations to evolve.
-            - Defaults to 100.
+            - Defaults to 'sobol'. (Recommended power-of-2 population sizes for maximum uniformity).
+            - Existing options are:
+                - 'sobol': Sobol (highly uniform QMC; powers of 2 population sizes recommended).
+                - 'hds': Hyperellipsoid Density (non-uniform; density weights 'hds_weights' recommended). 
+                - 'lhs': Latin Hypercube (uniform QMC).
+                - 'random': Random sampling (uniform).
+                -  custom population (N x D matrix).
+        - popsize: Number of solution vectors to evolve (default 10 * n_dimensions).
+            - Recommended to be a power of 2 for Sobol initialization.
+        - maxiter: Number of generations to evolve (default 100).
+            
         - entangle_rate: Probability of solutions using the local Spooky-Best mutation strategy.
-            - Defaults to 0.33. This causes to the three mutation strategies to be applied equally.
-            - Decreasing (theoretically) leads to higher exploration.
-            - Mutation factors can be visualized with the plot_mutations() function.
+            - Defaults to 0.33. This causes to the three mutation strategies to be applied equally. 
+            - Higher implies more exploitation.
+        - polish: Boolean to implement final polishing step, using SciPy.optimize.minimize.
+        - polish_minimizer: Minimization function to use for polishing step (using SciPy naming conventions).
+            - Defaults to 'Powell' minimization, or 'SLSQP' if 'constraints' parameter is provided.
+            - Recommended to place constraints in objective function to use Powell.
+        
         - patience: Number of generations without improvement before early convergence.
-        - polish: Final polishing step using 'L-BFGS-B' minimization.
-        - vectorized: Boolean to accept vectorized objective functions.
-        - verbose: Displays prints and plots.
-        - num_to_plot: Number of solution trajectories to display in the verbose plot.
-        - plot_contour: Display contour for 2D plots. May cause issues with plotting.
+        - vectorized: Boolean to accept vectorized (N,D) objective functions 
+            - Extremely efficient, highly recommended whenever possible.
+        
         - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
-        - seed: Random seed.
+            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
+        - kwargs: Dictionary of keyword arguments for the objective function.
+
+        - constraints: Dictionary of constraints to penalize.
+            - If possible, it is highly recommended to implement constraints as 
+                high penalties into user's objective function instead. The same logic is used here, but
+                
+            - Example for x[1] - x[0]**2 <= 100:
+                def test_constraint(x):
+                    return x[1] - x[0]**2  # non-vectorized, or
+                    return x[:,1] - x[:,0]**2  # vectorized
+                custom_constraints = {
+                                    'heat_capacity': (test_constraint, '<=', 100) 
+                                        }
+        - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
+        
+        - verbose: Displays prints and plots.
+            - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()
+        - num_to_plot: Number of solutions to display in the verbose plot.
+        - plot_contour: Display 2D contour, for 2D problems only.
+        
+        - workers: Number of workers / jobs / cores to use.
+            - Default is 1. Set to -1 to use all available.
+            - If workers != 1, constraint & objective functions must be imported from external module, for pickling.
+        - seed: Random seed for deterministic & reproducible results.
+        
     Outputs:
         - (best_solution, best_fitness) tuple:
             - best_solution: Best solution found.
             - best_fitness: Fitness of the optimal solution.
     '''
-
+    
     # set random seed
+    import numpy as np
     if seed == None:
         np.random.seed()
     else:
@@ -584,12 +519,31 @@ def optimize(func, bounds, args=(),
             import time
             start_time = time.time()
         except:
-            pass
-
-    # lowercase initialization
+            pass        
+    
+    # lowercase initialization string
     if type(init) == str:
         init = init.lower()
+    
+    # identify number of workers to use if input is -1
+    if workers == -1:
+        try:
+            import os
+        except:
+            raise ImportError('Failed to import parallelization package: os.')
+            
+        # use all available CPU cores
+        n_workers = os.cpu_count()
         
+        # leave one core free for the main process while ensuring at least 1 active worker
+        n_workers = max(1, n_workers - 1)
+    else:
+        # use specified number of workers
+        n_workers = int(workers)
+        
+    # boolean to indicate parallelization
+    use_parallel = (n_workers > 1) and not vectorized
+    
     # raise errors for invalid inputs:
     # entangle rate error
     if not 0.0 <= entangle_rate <= 1.0:
@@ -610,15 +564,15 @@ def optimize(func, bounds, args=(),
     # ensure bounds is array; shape (n_dimensions,2)
     bounds = np.array(bounds)
     n_dimensions = bounds.shape[0]
-    
+        
     # if init is not a string, assume it is a custom population
     if not isinstance(init, str):
         popsize = init.shape[0]
-        
+
     # default popsize to 10*n_dimensions
     if popsize == None:
         popsize = 10*n_dimensions
-
+        
     # ensure integers
     popsize, maxiter = int(popsize), int(maxiter)
 
@@ -627,13 +581,40 @@ def optimize(func, bounds, args=(),
     if verbose:
         print('\nEvolving population:')
 
-    # match differential evolution conventions
+    # match differential evolution conventions    
     if vectorized:
         initial_population = initial_population.T
-        initial_fitnesses = func(initial_population.T, *args)
-    else:
-        initial_fitnesses = np.array([func(sol, *args) for sol in initial_population])
+        initial_fitnesses = func(initial_population.T, *args, **kwargs)
 
+    # non-vectorized parallel execution
+    elif use_parallel:
+        try:
+            import functools
+            from concurrent.futures import ProcessPoolExecutor
+        except:
+            raise ImportError("Failed to import parallelization packages: 'functools', 'concurrent.futures.ProcessPoolExecutor'.")
+            
+        if verbose:
+            print(f'Parallel execution with {n_workers} workers.')
+        
+        func_with_args = functools.partial(func, *args, **kwargs) # functools.partial to fix the *args for objective function
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            # map() distributes the population elements to workers
+            initial_fitnesses = np.array(list(executor.map(func_with_args, initial_population)))
+
+    # non-vectorized
+    else:
+        initial_fitnesses = np.array([func(sol, *args, **kwargs) for sol in initial_population])
+
+    # apply constraint penalty to initial fitnesses
+    if constraints:
+        try:
+            from .quasar_helpers import apply_penalty 
+        except ImportError:
+            from quasar_helpers import apply_penalty
+        initial_fitnesses = apply_penalty(initial_fitnesses, initial_population, constraints, 
+                                          constraint_penalty, vectorized)
+    
     # calculate initial best fitness
     min_fitness_idx = np.argmin(initial_fitnesses)
     initial_best_fitness = initial_fitnesses[min_fitness_idx]
@@ -665,14 +646,15 @@ def optimize(func, bounds, args=(),
     # iterate through generations
     last_improvement_gen = 0
     for generation in range(maxiter):
-        
         # evolve population
         if vectorized:
             population, current_fitnesses = evolve_generation(func, population, current_fitnesses, best_solution, bounds, 
-                                                             entangle_rate, generation, maxiter, vectorized, *args)
+                                                             entangle_rate, generation, maxiter, vectorized, 
+                                                              n_workers, constraints, constraint_penalty, *args, **kwargs)
         else:
             population, current_fitnesses = evolve_generation(func, population, current_fitnesses, best_solution, bounds, 
-                                                             entangle_rate, generation, maxiter, vectorized, *args)
+                                                             entangle_rate, generation, maxiter, vectorized, 
+                                                              n_workers, constraints, constraint_penalty, *args, **kwargs)
         
         # update best solution found
         min_fitness_idx = np.argmin(current_fitnesses)
@@ -721,25 +703,23 @@ def optimize(func, bounds, args=(),
         # patience for early convergence
         if (generation - last_improvement_gen) > patience:
             if verbose:
-                print(f'\nEarly convergence: generations without improvement exceeds patience ({patience}).')
+                print(f'\nEarly convergence: number of generations without improvement exceeds patience ({patience}).')
             break
 
-    # polish final solution step via L-BFGS-B
+    # polish final solution
     if polish:
-        if verbose:
-            print('Polishing solution.')
         try:
-            from scipy.optimize import minimize
-            if vectorized:
-                res = minimize(func, best_solution, args=args, bounds=bounds, method='L-BFGS-B', tol=0)
-            else:
-                res = minimize(func, best_solution, args=args, bounds=bounds, method='L-BFGS-B', tol=0)
-            if res.success:
-                best_solution = res.x
-                best_fitness = res.fun
-        except Exception as e:
-            print(f'Polishing failed: {e}')
-
+            from .quasar_helpers import polish_solution
+        except:
+            from quasar_helpers import polish_solution
+        best_solution, best_fitness = polish_solution(
+                                        func=func, best_solution=best_solution, best_fitness=best_fitness, 
+                                        bounds=bounds, popsize=popsize, 
+                                        maxiter=maxiter, vectorized=vectorized, constraints=constraints, 
+                                        args=args, kwargs=kwargs, 
+                                        polish_minimizer=polish_minimizer, verbose=verbose
+    )
+    
     # final solution prints
     if verbose:
         print('\nResults:')
@@ -747,7 +727,7 @@ def optimize(func, bounds, args=(),
         # print best fitness
         print(f'- f(x): {best_fitness:.2e}')
         
-        #print best solution
+        # print best solution
         if len(best_solution)>3:
             formatted_display = ', '.join([f'{val:.2e}' for val in best_solution[:3]])
             print(f'- Solution: [{formatted_display}, ...]')
@@ -761,10 +741,14 @@ def optimize(func, bounds, args=(),
         except Exception as e:
             print(f'- Elapsed: null') # case where time isn't imported
         
-        # plotting
+        # plot solution paths
         print()
         try:
-            plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour)
+            try:
+                from .quasar_helpers import plot_trajectories
+            except ImportError:
+                from quasar_helpers import plot_trajectories
+            plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour, args, kwargs, vectorized)
 
         except Exception as e:
             print(f'Failed to generate plots: {e}')
