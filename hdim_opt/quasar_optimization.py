@@ -432,7 +432,8 @@ def optimize(func, bounds, args=(),
               entangle_rate=0.33, polish=True, polish_minimizer=None,
               patience=np.inf, vectorized=False,
               hds_weights=None, kwargs={},
-              constraints=None, constraint_penalty=1e6, 
+              constraints=None, constraint_penalty=1e9,
+              reinitialization=True,
               verbose=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
@@ -489,6 +490,10 @@ def optimize(func, bounds, args=(),
                                     'heat_capacity': (test_constraint, '<=', 100) 
                                         }
         - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
+
+        - covariance_reinit: Boolean to disable covariance reinitialization if needed.
+            - For cases where the population size is computationally prohibitive.
+            - Disabled by default for 1D problems.
         
         - verbose: Displays prints and plots.
             - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()
@@ -540,9 +545,6 @@ def optimize(func, bounds, args=(),
     else:
         # use specified number of workers
         n_workers = int(workers)
-        
-    # boolean to indicate parallelization
-    use_parallel = (n_workers > 1) and not vectorized
     
     # raise errors for invalid inputs:
     # entangle rate error
@@ -564,6 +566,9 @@ def optimize(func, bounds, args=(),
     # ensure bounds is array; shape (n_dimensions,2)
     bounds = np.array(bounds)
     n_dimensions = bounds.shape[0]
+
+    if n_dimensions == 1:
+        reinitialization = False
         
     # if init is not a string, assume it is a custom population
     if not isinstance(init, str):
@@ -571,7 +576,7 @@ def optimize(func, bounds, args=(),
 
     # default popsize to 10*n_dimensions
     if popsize == None:
-        popsize = 10*n_dimensions
+        popsize = min(2**7,10*n_dimensions)
         
     # ensure integers
     popsize, maxiter = int(popsize), int(maxiter)
@@ -585,9 +590,9 @@ def optimize(func, bounds, args=(),
     if vectorized:
         initial_population = initial_population.T
         initial_fitnesses = func(initial_population.T, *args, **kwargs)
-
+    
     # non-vectorized parallel execution
-    elif use_parallel:
+    elif (n_workers > 1) and not vectorized:
         try:
             import functools
             from concurrent.futures import ProcessPoolExecutor
@@ -677,7 +682,10 @@ def optimize(func, bounds, args=(),
         # apply asymptotic covariance reinitialization to population
         final_proba = 0.33
         decay_generation = 0.33
-        reinit_proba = np.e**((np.log(final_proba)/(decay_generation*maxiter))*generation)
+        if reinitialization:
+            reinit_proba = np.e**((np.log(final_proba)/(decay_generation*maxiter))*generation)
+        else:
+            reinit_proba = 0.0
         if np.random.rand() < reinit_proba:
             population = covariance_reinit(population, current_fitnesses, bounds, vectorized=vectorized)
 

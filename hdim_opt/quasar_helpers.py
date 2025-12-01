@@ -244,6 +244,16 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
     # convert to arrays
     plot_pop_history = np.array(pop_history)
     plot_best_history = np.array(best_history)
+
+    if original_dims == 1:
+        plt.figure(figsize=(7, 5.5))
+        plt.plot(best_history, color='r', marker='x')
+        plt.xlabel('Generation')
+        plt.ylabel('Parameter Value')
+        plt.title('Best Solution Trajectory')
+        plt.show()
+        
+        return None
     
     # ensure bounds array has more than 2 dimensions
     if original_dims > 2:
@@ -288,7 +298,7 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
         plt.xlabel('Principal Component 0')
         plt.ylabel('Principal Component 1')
     plt.title('Solution Trajectories')
-
+    
     # plot contour
     if (original_dims == 2) & plot_contour:
         try:

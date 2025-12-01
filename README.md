@@ -1,11 +1,11 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-A modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm and HDS non-uniform QMC sampler.
+A modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm and HDS exploitative QMC sampler.
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
-* **quasar**: QUASAR optimization.
-* **hds**: Generate a non-uniform HDS sequence, for a dense sample distribution.
-* **sobol**: Generate a highly uniform sample sequence (via SciPy).
+* **quasar**: QUASAR optimization for high-dimensional, non-differentiable problems.
+* **hds**: Generate an exploitative HDS sequence, to distribute samples in focused regions.
+* **sobol**: Generate a uniform Sobol sequence (via SciPy).
 * **sensitivity**: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
 
 ---
@@ -29,7 +29,6 @@ bounds = [(-100,100)] * n_dimensions
 n_samples = 1000
 obj_func = h.test_functions.rastrigin
 
-# Functions
 solution, fitness = h.quasar(obj_func, bounds)
 sens_matrix = h.sensitivity(obj_func, bounds)
 hds_samples = h.hds(n_samples, bounds)
