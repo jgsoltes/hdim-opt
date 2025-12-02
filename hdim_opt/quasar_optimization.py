@@ -510,6 +510,8 @@ def optimize(func, bounds, args=(),
             - best_solution: Best solution found.
             - best_fitness: Fitness of the optimal solution.
     '''
+
+    ################################# INITIALIZE PARAMETERS #################################
     
     # set random seed
     import numpy as np
@@ -546,19 +548,6 @@ def optimize(func, bounds, args=(),
         # use specified number of workers
         n_workers = int(workers)
     
-    # raise errors for invalid inputs:
-    # entangle rate error
-    if not 0.0 <= entangle_rate <= 1.0:
-        raise ValueError('Entanglement rate must be between [0,1].')
-
-    # initialization error
-    if (type(init) == str) and init not in ['sobol','hds','random','lhs']:
-        raise ValueError("Initial sampler must be one of ['sobol','random','hds','lhs'], or a custom population.")
-    
-    # patience error
-    if patience <= 1:
-        raise ValueError('Patience must be > 1 generation.')
-    
     # initialize histories
     pop_history = []
     best_history = []
@@ -581,6 +570,24 @@ def optimize(func, bounds, args=(),
     # ensure integers
     popsize, maxiter = int(popsize), int(maxiter)
 
+    
+    ################################# INPUT ERRORS #################################
+    
+    # entangle rate error
+    if not 0.0 <= entangle_rate <= 1.0:
+        raise ValueError('Entanglement rate must be between [0,1].')
+
+    # initialization error
+    if (type(init) == str) and init not in ['sobol','hds','random','lhs']:
+        raise ValueError("Initial sampler must be one of ['sobol','random','hds','lhs'], or a custom population.")
+    
+    # patience error
+    if patience <= 1:
+        raise ValueError('Patience must be > 1 generation.')
+
+    
+    ################################# INITIAL POPULATION #################################
+    
     # generate initial population
     initial_population = initialize_population(popsize, bounds, init, hds_weights, seed, verbose)
     if verbose:
@@ -654,8 +661,10 @@ def optimize(func, bounds, args=(),
     # initialize best solution and fitness
     best_solution = initial_best_solution
     best_fitness = initial_best_fitness
+
     
-    # iterate through generations
+    ################################# EVOLVE GENERATIONS #################################
+    
     last_improvement_gen = 0
     for generation in range(maxiter):
         # evolve population
@@ -729,6 +738,9 @@ def optimize(func, bounds, args=(),
                 print(f'\nEarly convergence: number of generations without improvement exceeds patience ({patience}).')
             break
 
+    
+    ################################# POLISH #################################
+    
     # polish final solution
     if polish:
         try:
@@ -742,6 +754,9 @@ def optimize(func, bounds, args=(),
                                         args=args, kwargs=kwargs, 
                                         polish_minimizer=polish_minimizer, verbose=verbose
     )
+
+    
+    ################################# VERBOSE #################################
     
     # final solution prints
     if verbose:
@@ -764,19 +779,16 @@ def optimize(func, bounds, args=(),
         except Exception as e:
             print(f'- Elapsed: null') # case where time isn't imported
 
-    if plot_solutions:
-        if verbose == False:
-            print('Unable to plot solutions with verbose == False.')
-        else: # plot solution paths
-            print()
+    if plot_solutions and verbose:
+        print()
+        try:
             try:
-                try:
-                    from .quasar_helpers import plot_trajectories
-                except ImportError:
-                    from quasar_helpers import plot_trajectories
-                plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour, args, kwargs, vectorized)
-    
-            except Exception as e:
-                print(f'Failed to generate plots: {e}')
+                from .quasar_helpers import plot_trajectories
+            except ImportError:
+                from quasar_helpers import plot_trajectories
+            plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour, args, kwargs, vectorized)
+
+        except Exception as e:
+            print(f'Failed to generate plots: {e}')
     
     return (best_solution, best_fitness)

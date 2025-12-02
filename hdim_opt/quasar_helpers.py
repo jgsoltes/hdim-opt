@@ -257,38 +257,56 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
     
     # ensure bounds array has more than 2 dimensions
     if original_dims > 2:
-        pca = PCA(n_components=2)
-        
-        # reshape data to fit PCA
-        all_data = plot_pop_history.reshape(-1, original_dims)
-        
-        # fit PCA on population history
-        pca.fit(all_data)
+        if plot_pop_history.size > 0:
+            pca = PCA(n_components=2)
+            
+            # reshape data to fit PCA
+            all_data = plot_pop_history.reshape(-1, original_dims)
+            
+            # fit PCA on population history
+            pca.fit(all_data)
 
-        # reshape data
-        num_generations = plot_pop_history.shape[0]
-        popsize = plot_pop_history.shape[1]
-        
-        # transform and reshape dadta
-        plot_pop_history = pca.transform(all_data).reshape(num_generations, popsize, 2)
-        plot_best_history = pca.transform(plot_best_history)
-        
-        # adjust bounds
-        combined_transformed_data = np.concatenate([plot_pop_history.reshape(-1, 2), plot_best_history], axis=0)
-        
-        # ensure combined data is not empty
-        if combined_transformed_data.size > 0:
-            min_vals = np.min(combined_transformed_data, axis=0)
-            max_vals = np.max(combined_transformed_data, axis=0)
-            x_min, x_max = min_vals[0], max_vals[0]
-            y_min, y_max = min_vals[1], max_vals[1]
+            # reshape data
+            num_generations = plot_pop_history.shape[0]
+            popsize = plot_pop_history.shape[1]
+            
+            # transform and reshape data
+            plot_pop_history = pca.transform(all_data).reshape(num_generations, popsize, 2)
+            plot_best_history = pca.transform(plot_best_history)
+            
+            # adjust bounds
+            combined_transformed_data = np.concatenate([plot_pop_history.reshape(-1, 2), plot_best_history], axis=0)
+            
+            # ensure combined data is not empty
+            if combined_transformed_data.size > 0:
+                min_vals = np.min(combined_transformed_data, axis=0)
+                max_vals = np.max(combined_transformed_data, axis=0)
+                x_min, x_max = min_vals[0], max_vals[0]
+                y_min, y_max = min_vals[1], max_vals[1]
+            else:
+                # Fallback bounds if all data is empty
+                x_min, x_max = -1, 1
+                y_min, y_max = -1, 1
+
         else:
-            x_min, x_max = -1, 1
-            y_min, y_max = -1, 1
-    
-    else:
-        x_min, x_max = bounds[0, 0], bounds[0, 1]
-        y_min, y_max = bounds[1, 0], bounds[1, 1]
+            # case where only best_history exists (num_to_plot = 0)
+            if plot_best_history.shape[0] > 1:
+                pca = PCA(n_components=2)
+                pca.fit(plot_best_history) # Fit PCA on best_history
+                plot_best_history = pca.transform(plot_best_history) # Transform best_history
+                plot_pop_history = None
+                
+                # adjust bounds based on history
+                min_vals = np.min(plot_best_history, axis=0)
+                max_vals = np.max(plot_best_history, axis=0)
+                x_min, x_max = min_vals[0], max_vals[0]
+                y_min, y_max = min_vals[1], max_vals[1]
+            else:
+                 # if no history available
+                plot_best_history = None
+                plot_pop_history = None
+                x_min, x_max = -1, 1
+                y_min, y_max = -1, 1
     
     plt.figure(figsize=(7, 5.5))
     if original_dims == 2:
@@ -329,7 +347,7 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
             print(f'Contour failed: {e}')
 
     # plot solutions
-    if plot_pop_history is not None:
+    if (plot_pop_history is not None) and (num_to_plot > 0):
         indices_to_plot = np.random.choice(plot_pop_history.shape[1], min(num_to_plot, plot_pop_history.shape[1]), replace=False)
         
         for i in indices_to_plot:
