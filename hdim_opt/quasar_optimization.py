@@ -434,7 +434,7 @@ def optimize(func, bounds, args=(),
               hds_weights=None, kwargs={},
               constraints=None, constraint_penalty=1e9,
               reinitialization=True,
-              verbose=True, num_to_plot=10, plot_contour=True,
+              verbose=True, plot_solutions=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
     '''
@@ -636,13 +636,20 @@ def optimize(func, bounds, args=(),
 
     # add initial population to population history
     if verbose:
-        if vectorized:
-            pop_history.append(population.T.copy())
+        # determine which solutions to sample
+        if popsize <= num_to_plot:
+            # if popsize is small, take the whole population
+            indices_to_sample = np.arange(popsize)
         else:
-            pop_history.append(population.copy())
-
-    # add initial best solution to best solution history
-    best_history.append(initial_best_solution.copy())
+            # otherwise, randomly sample
+            indices_to_sample = np.random.choice(popsize, num_to_plot, replace=False)
+    
+        if vectorized:
+            sampled_population = population[:, indices_to_sample].T.copy()
+        else:
+            sampled_population = population[indices_to_sample].copy()
+        pop_history.append(sampled_population)
+        best_history.append(initial_best_solution.copy())
     
     # initialize best solution and fitness
     best_solution = initial_best_solution
@@ -697,11 +704,19 @@ def optimize(func, bounds, args=(),
 
         # add to population history
         if verbose:
-            if vectorized:
-                pop_history.append(population.T.copy())
-            else:
-                pop_history.append(population.copy())
-            best_history.append(best_solution.copy())
+          # determine which solutions to sample
+          if popsize <= num_to_plot:
+              indices_to_sample = np.arange(popsize)
+          else:
+              indices_to_sample = np.random.choice(popsize, num_to_plot, replace=False)
+        
+          if vectorized:
+              sampled_population = population[:, indices_to_sample].T.copy()
+          else:
+              sampled_population = population[indices_to_sample].copy()
+              
+          pop_history.append(sampled_population)
+          best_history.append(best_solution.copy())
 
         # print generation status
         if verbose:
@@ -748,17 +763,20 @@ def optimize(func, bounds, args=(),
             print(f'- Elapsed: {(time.time() - start_time):.3f}s')
         except Exception as e:
             print(f'- Elapsed: null') # case where time isn't imported
-        
-        # plot solution paths
-        print()
-        try:
-            try:
-                from .quasar_helpers import plot_trajectories
-            except ImportError:
-                from quasar_helpers import plot_trajectories
-            plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour, args, kwargs, vectorized)
 
-        except Exception as e:
-            print(f'Failed to generate plots: {e}')
+    if plot_solutions:
+        if verbose == False:
+            print('Unable to plot solutions with verbose == False.')
+        else: # plot solution paths
+            print()
+            try:
+                try:
+                    from .quasar_helpers import plot_trajectories
+                except ImportError:
+                    from quasar_helpers import plot_trajectories
+                plot_trajectories(func, pop_history, best_history, bounds, num_to_plot, plot_contour, args, kwargs, vectorized)
+    
+            except Exception as e:
+                print(f'Failed to generate plots: {e}')
     
     return (best_solution, best_fitness)

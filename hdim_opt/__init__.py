@@ -1,7 +1,7 @@
 # hdim_opt/__init__.py
 
 # package version
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __all__ = ['quasar', 'hds', 'sobol', 'sensitivity', 'test_functions', 'quasar_helpers'] # available for star imports
 
 # import core components
