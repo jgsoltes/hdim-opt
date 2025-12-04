@@ -10,7 +10,7 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     Inputs:
         - popsize: Population size to generate.
         - bounds: Parameter space bounds.
-        - init: Sampling method. ['sobol','hds','lhs','random'], or a custom array.
+        - init: Sampling method; ['sobol','hds','lhs','random'], or a custom array.
     Outputs:
         - initial_population: Initial population to optimize.
     '''
@@ -32,35 +32,36 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     
             # generate samples
             if verbose:
-                print('Initializing Hyperellipsoid vectors.')
+                print(f'Initializing: Hyperellipsoid population (N={popsize}, D={n_dimensions}).')
             initial_population = hds.sample(popsize, bounds, weights=hds_weights, 
                                             seed=seed, verbose=False)
     
         # generate sobol sequence
         elif init == 'sobol':
             if verbose:
-                print('Initializing Sobol vectors.')
+                print(f'Initializing: Sobol population (N={popsize}, D={n_dimensions}).')
             import warnings
             warnings.filterwarnings('ignore', category=UserWarning) # ignore power-of-2 warning
             sobol_sampler = stats.qmc.Sobol(d=n_dimensions, seed=seed)
             sobol_samples_unit = sobol_sampler.random(n=popsize)
             initial_population = stats.qmc.scale(sobol_samples_unit, bounds[:, 0], bounds[:, 1])
     
-        elif init == 'lhs':
+        elif (init == 'lhs') or (init == 'latinhypercube'):
             if verbose:
-                print('Initializing Latin Hypercube vectors.')
+                print(f'Initializing: Latin Hypercube population (N={popsize}, D={n_dimensions}).')
             lhs_sampler = stats.qmc.LatinHypercube(d=n_dimensions, seed=seed)
             lhs_samples_unit = lhs_sampler.random(n=popsize)
             initial_population = stats.qmc.scale(lhs_samples_unit, bounds[:, 0], bounds[:, 1])
     
         elif init == 'random':
             if verbose:
-                print('Initializing random vectors.')
+                print(f'Initializing: Random population (N={popsize}, D={n_dimensions}).')
             initial_population = np.random.uniform(low=bounds[:, 0], high=bounds[:, 1], size=(popsize, n_dimensions))
     else:
         initial_population = init
         if verbose:
-            print('Initializing custom population.')
+            custom_popsize, custom_n_dimensions = init.shape
+            print(f'Initializing: Custom population (N={custom_popsize}, D={custom_n_dimensions}).')
 
     return initial_population
 
@@ -331,99 +332,7 @@ def covariance_reinit(population, current_fitnesses, bounds, vectorized):
         population[worst_indices] = np.clip(new_solutions, bounds[:, 0], bounds[:, 1])
 
     return population
-
-def polish_solution(
-            func=None, best_solution=None, best_fitness=None, bounds=None, popsize=None, maxiter=None, 
-            vectorized=None, constraints=None, args=None, kwargs=None, 
-            polish_minimizer=None, verbose=None):
-    try:
-        from scipy.optimize import minimize
-        # handles a single 1D vector input (x) and returns a scalar fitness value.
-        def polish_obj_func(x):
-            '''Wrapper function to handle vectorized and non-vectorized inputs for SciPy minimize.'''
-            
-            if vectorized:
-                # reshape for vectorized objective functions, take first element for (N,)
-                return func(x.reshape(1,-1), *args, **kwargs)[0]
-            else:
-                # if not vectorized, x is already in the correct shape
-                return func(x, *args, **kwargs)
-
-        # constraints
-        scipy_constraints = []
-        if constraints:
-            # loop through constraints
-            for con_name, con_spec in constraints.items():
-                con_func = con_spec[0]
-                con_type = con_spec[1]
-                con_rhs = con_spec[2]
-
-                # vectorized with constraints case
-                if vectorized:
-                    try: 
-                        from .quasar_helpers import scalar_constraint_wrapper
-                    except:
-                        from quasar_helpers import scalar_constraint_wrapper
-                    
-                    # apply wrapper function to handle 1D input from minimize
-                    constraint_fun = lambda x: scalar_constraint_wrapper(x, con_func)
-                else:
-                    constraint_fun = con_func
-
-                if con_type == '<=':
-                    # inequality: g(x) <= 0
-                    scipy_constraints.append({
-                        'type': 'ineq', 
-                        'fun': lambda x: con_rhs - constraint_fun(x),
-                        })
-                elif con_type == '>=':
-                    # inequality: g(x) >= 0 
-                    scipy_constraints.append({
-                        'type': 'ineq', 
-                        'fun': lambda x: constraint_fun(x) - con_rhs,
-                        }),
-                elif con_type == '==':
-                    # equality: g(x) = C [g(x) - C = 0]
-                    scipy_constraints.append({
-                        'type': 'eq', 
-                        # fun: lambda x: g(x) - C
-                        'fun': lambda x: constraint_fun(x) - con_rhs,
-                        })
-                    
-            # use trust-constr when constraints are present
-            if polish_minimizer is None:
-                polish_minimizer = 'SLSQP' 
-        else:
-            # otherwise default to Powell
-            if polish_minimizer is None:
-                polish_minimizer = 'Powell'
-
-        polish_iterations = int(np.minimum(500,np.sqrt(popsize*maxiter)))
-
-        # minimize
-        if verbose:
-            print(f'Polishing solution with {polish_minimizer}.')
-        polish_result = minimize(
-                                polish_obj_func, best_solution, method = polish_minimizer,
-                                bounds=bounds, options={'maxiter': polish_iterations},
-                                constraints = scipy_constraints if constraints else()
-        )
     
-        # update best solution
-        if polish_result.success and polish_result.fun < best_fitness:
-            best_fitness_polished = polish_result.fun
-            best_solution_polished = polish_result.x
-        else:
-            best_fitness_polished = best_fitness
-            best_solution_polished = best_solution
-
-    except Exception as e:
-        print(f'Polishing failed: {e}.')
-        
-        return best_solution, best_fitness
-        
-    return best_solution_polished, best_fitness_polished
-
 
 # main optimize function
 
@@ -578,7 +487,7 @@ def optimize(func, bounds, args=(),
         raise ValueError('Entanglement rate must be between [0,1].')
 
     # initialization error
-    if (type(init) == str) and init not in ['sobol','hds','random','lhs']:
+    if (type(init) == str) and init not in ['sobol','hds','random','lhs','latinhypercube']:
         raise ValueError("Initial sampler must be one of ['sobol','random','hds','lhs'], or a custom population.")
     
     # patience error
@@ -641,8 +550,8 @@ def optimize(func, bounds, args=(),
     population = initial_population
     current_fitnesses = initial_fitnesses
 
-    # add initial population to population history
-    if verbose:
+    # add initial population to population history for plotting
+    if plot_solutions:
         # determine which solutions to sample
         if popsize <= num_to_plot:
             # if popsize is small, take the whole population

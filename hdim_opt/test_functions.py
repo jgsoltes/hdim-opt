@@ -87,3 +87,24 @@ def sphere(x):
         sphere_val = np.sum(x**2)
     
     return sphere_val
+
+def shubert(x):
+    '''
+    Shubert test function, for local testing.
+    '''
+
+    # check if x is matrix or single vector
+    matrix_flag = x.ndim > 1
+    
+    j_values = np.arange(1, 6) # [1, 2, 3, 4, 5]
+    x_reshaped = np.expand_dims(x, axis=-1)
+    arg = (j_values + 1) * x_reshaped + j_values
+    term = j_values * np.cos(arg)
+    g_x = np.sum(term, axis=-1)
+
+    if matrix_flag:
+        shubert_value = np.prod(g_x, axis=1)
+    else:
+        shubert_value = np.prod(g_x)
+    
+    return shubert_value

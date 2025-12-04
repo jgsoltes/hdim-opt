@@ -151,7 +151,7 @@ def polish_solution(
             best_solution_polished = best_solution
 
     except Exception as e:
-        print(f'Polishing failed: {e}.')
+        print(f'Polishing failed: {e}')
         
         return best_solution, best_fitness
         
@@ -318,33 +318,36 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
     plt.title('Solution Trajectories')
     
     # plot contour
-    if (original_dims == 2) & plot_contour:
-        try:
-            # objective function contour plot
-            x = np.linspace(x_min, x_max, 100)
-            y = np.linspace(y_min, y_max, 100)
-            X, Y = np.meshgrid(x, y)
-            xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
-            if vectorized:
-                # Z = obj_function(xy_coords)
-                Z = obj_function(xy_coords,*args,**kwargs).reshape(X.shape)
-            else:
-                fitness_list = [obj_function(coords,*args,**kwargs) for coords in xy_coords]
-                Z = np.array(fitness_list).reshape(X.shape)
-            
-            # evaluate objective function over 2D grid, log scale in case large orders of magnitude 
-            Z = np.log10(Z + epsilon)
-            Z[~np.isfinite(Z)] = np.nanmax(Z[np.isfinite(Z)]) * 1.1 if np.any(np.isfinite(Z)) else 0
-            
-            # remove 5% worst outliers and clip for visualization
-            z_min_clip = np.percentile(Z.flatten(), 5)
-            z_max_clip = np.percentile(Z.flatten(), 95)
-            Z_clipped = np.clip(Z, z_min_clip, z_max_clip)
-            
-            plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
-            plt.colorbar(label='Objective Value')
-        except Exception as e:
-            print(f'Contour failed: {e}')
+    if original_dims == 2:
+        x_min, x_max = bounds[0, 0], bounds[0, 1]
+        y_min, y_max = bounds[1, 0], bounds[1, 1]
+        if plot_contour:
+            try:
+                # objective function contour plot
+                x = np.linspace(x_min, x_max, 100)
+                y = np.linspace(y_min, y_max, 100)
+                X, Y = np.meshgrid(x, y)
+                xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
+                if vectorized:
+                    # Z = obj_function(xy_coords)
+                    Z = obj_function(xy_coords,*args,**kwargs).reshape(X.shape)
+                else:
+                    fitness_list = [obj_function(coords,*args,**kwargs) for coords in xy_coords]
+                    Z = np.array(fitness_list).reshape(X.shape)
+                
+                # evaluate objective function over 2D grid, log scale in case large orders of magnitude 
+                Z = np.log10(Z + epsilon)
+                Z[~np.isfinite(Z)] = np.nanmax(Z[np.isfinite(Z)]) * 1.1 if np.any(np.isfinite(Z)) else 0
+                
+                # remove 5% worst outliers and clip for visualization
+                z_min_clip = np.percentile(Z.flatten(), 5)
+                z_max_clip = np.percentile(Z.flatten(), 95)
+                Z_clipped = np.clip(Z, z_min_clip, z_max_clip)
+                
+                plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
+                plt.colorbar(label='Objective Value')
+            except Exception as e:
+                print(f'Contour failed: {e}')
 
     # plot solutions
     if (plot_pop_history is not None) and (num_to_plot > 0):
