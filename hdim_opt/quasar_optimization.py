@@ -260,14 +260,13 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
         
     return new_population, new_fitnesses
 
-def covariance_reinit(population, current_fitnesses, bounds, vectorized):
+def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, vectorized):
     '''
     Objective:
         - Reinitializes the worst 33% solutions in the population.
-        - Locations are determined based on a Gaussian distribution from the covariance matrix of 25% best solutions.
-            - Noise is added to enhance diversity.
-        - Probability decays to 33% at the 33% generation.
-        - Conceptualizes particles tunneling to a more stable location.
+        - Locations are determined based on either:
+            - 'covariance' (default): Gaussian distribution from the covariance of 25% best solutions (exploitation).
+            - 'sobol': Uniformly Sobol distributed within the bounds (exploration).
     '''
 
     # reshape depending on vectorized input
@@ -276,60 +275,90 @@ def covariance_reinit(population, current_fitnesses, bounds, vectorized):
     else:
         popsize, dimensions = population.shape
 
-    # handle case where not enough points for covariance matrix
+    # handle case where not enough points for reliable covariance matrix
     if popsize < dimensions + 1:
         return population
-
-    # keep 25% of best solutions
-    num_to_keep_factor = 0.25
-    num_to_keep = int(popsize * num_to_keep_factor)
-    if num_to_keep <= dimensions:
-        num_to_keep = dimensions + 1 # minimum sample size scaled by dimensions
     
-    # identify best solutions to calculate covariance gaussian model
-    sorted_indices = np.argsort(current_fitnesses)
-    best_indices = sorted_indices[:num_to_keep]
-    if vectorized:
-        best_solutions = population[:, best_indices]
-    else:
-        best_solutions = population[best_indices]
-    
-    # learn full-covariance matrix
-    if vectorized:
-        mean_vector = np.mean(best_solutions, axis=1)
-        cov_matrix = np.cov(best_solutions)
-    else:
-        mean_vector = np.mean(best_solutions, axis=0)
-        cov_matrix = np.cov(best_solutions, rowvar=False)
-
-    # add epsilon to the diagonal to prevent singular matrix issues
-    cov_matrix += np.eye(dimensions) * epsilon
-
     # identify solutions to be reset
     reset_population = 0.33
     num_to_replace = int(popsize * reset_population)
+    if num_to_replace == 0:
+        return population
+        
+    sorted_indices = np.argsort(current_fitnesses)
     worst_indices = sorted_indices[-num_to_replace:]
-
-    # new solutions sampled from multivariate normal distribution
-    if vectorized:
-        new_solutions_sampled = np.random.multivariate_normal(mean=mean_vector, cov=cov_matrix, size=num_to_replace).T
-    else:
-        new_solutions_sampled = np.random.multivariate_normal(mean=mean_vector, cov=cov_matrix, size=num_to_replace)
     
-    # add noise for exploration
-    noise_scale = (bounds[:, 1] - bounds[:, 0]) / 20.0
-    if vectorized:
-        noise = np.random.normal(0, noise_scale[:, np.newaxis], size=new_solutions_sampled.shape)
-        new_solutions = new_solutions_sampled + noise
-    else:
-        noise = np.random.normal(0, noise_scale, size=new_solutions_sampled.shape)
-        new_solutions = new_solutions_sampled + noise
+    # initializing new solutions
+    new_solutions = None
+    
+    # covariance reinitalization; exploitation
+    if reinit_method == 'covariance':
+        
+        # keep 25% of best solutions
+        num_to_keep_factor = 0.25
+        num_to_keep = int(popsize * num_to_keep_factor)
+        if num_to_keep <= dimensions:
+            num_to_keep = dimensions + 1 # minimum sample size scaled by dimensions
+        
+        # identify best solutions to calculate covariance gaussian model
+        best_indices = sorted_indices[:num_to_keep]
+        if vectorized:
+            best_solutions = population[:, best_indices]
+        else:
+            best_solutions = population[best_indices]
+        
+        # learn full-covariance matrix
+        if vectorized:
+            mean_vector = np.mean(best_solutions, axis=1)
+            cov_matrix = np.cov(best_solutions)
+        else:
+            mean_vector = np.mean(best_solutions, axis=0)
+            cov_matrix = np.cov(best_solutions, rowvar=False)
 
-    # clip new solutions to bounds
-    if vectorized:
-        population[:, worst_indices] = np.clip(new_solutions, bounds[:, np.newaxis, 0], bounds[:, np.newaxis, 1])
-    else:
-        population[worst_indices] = np.clip(new_solutions, bounds[:, 0], bounds[:, 1])
+        # add epsilon to the diagonal to prevent singular matrix issues
+        cov_matrix += np.eye(dimensions) * epsilon
+
+        # new solutions sampled from multivariate normal distribution
+        new_solutions_sampled = np.random.multivariate_normal(mean=mean_vector, cov=cov_matrix, size=num_to_replace)
+        
+        # add noise for exploration
+        noise_scale = (bounds[:, 1] - bounds[:, 0]) / 20.0
+
+        # reshape
+        if vectorized:
+            new_solutions_sampled = new_solutions_sampled.T 
+            noise = np.random.normal(0, noise_scale[:, np.newaxis], size=new_solutions_sampled.shape)
+            new_solutions = new_solutions_sampled + noise
+        else:
+            noise = np.random.normal(0, noise_scale, size=new_solutions_sampled.shape)
+            new_solutions = new_solutions_sampled + noise
+
+    # sobol reinitialization (high exploration)
+    elif reinit_method == 'sobol':
+        
+        # generate sobol samples
+        sobol_sampler = stats.qmc.Sobol(d=dimensions, seed=seed) 
+        sobol_samples_unit = sobol_sampler.random(n=num_to_replace)
+        
+        bounds_low = bounds[:, 0]
+        bounds_high = bounds[:, 1]
+        scaled_samples = stats.qmc.scale(sobol_samples_unit, bounds_low, bounds_high) 
+
+        # reshape
+        if vectorized:
+            new_solutions = scaled_samples.T
+        else:
+            new_solutions = scaled_samples
+        
+
+    # update the selected worst indices population
+    if new_solutions is not None:
+        if vectorized:
+            population[:, worst_indices] = np.clip(new_solutions, 
+                                                   bounds[:, np.newaxis, 0], 
+                                                   bounds[:, np.newaxis, 1])
+        else:
+            population[worst_indices] = np.clip(new_solutions, bounds[:, 0], bounds[:, 1])
 
     return population
     
@@ -342,7 +371,7 @@ def optimize(func, bounds, args=(),
               patience=np.inf, vectorized=False,
               hds_weights=None, kwargs={},
               constraints=None, constraint_penalty=1e9,
-              reinitialization=True,
+              reinitialization=True, reinitialization_method='covariance',
               verbose=True, plot_solutions=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
@@ -351,7 +380,7 @@ def optimize(func, bounds, args=(),
         - Finds the optimal solution for a given objective function.
         - Designed for non-differentiable, high-dimensional problems.
         - Test functions available for local testing, called as hdim_opt.test_functions.function_name.
-            - Existing test functions: [rastrigin, ackley, sinusoid, sphere]
+            - Existing test functions: [rastrigin, ackley, sinusoid, sphere, shubert].
             
     Inputs:
         - func: Objective function to minimize.
@@ -400,9 +429,13 @@ def optimize(func, bounds, args=(),
                                         }
         - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
 
-        - covariance_reinit: Boolean to disable covariance reinitialization if needed.
+        - reinitialization: Boolean to disable covariance reinitialization if needed.
             - For cases where the population size is computationally prohibitive.
             - Disabled by default for 1D problems.
+        - reinitialization_method: Type of re-sampling to use in the asymptotic reinitialization.
+            - Options are ['covariance', 'sobol'].
+            - 'covariance' (exploitative) is default for most problems.
+            - 'sobol' (explorative) is optional, for high exploration and faster computation.
         
         - verbose: Displays prints and plots.
             - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()
@@ -612,7 +645,7 @@ def optimize(func, bounds, args=(),
         else:
             reinit_proba = 0.0
         if np.random.rand() < reinit_proba:
-            population = covariance_reinit(population, current_fitnesses, bounds, vectorized=vectorized)
+            population = asym_reinit(population, current_fitnesses, bounds, reinitialization_method, seed, vectorized=vectorized)
 
         # clip population to bounds
         if vectorized:

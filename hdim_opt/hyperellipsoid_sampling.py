@@ -553,7 +553,7 @@ def sample(n_samples, bounds,
         # dark visualization parameters for better sample visuals
 
         # samples
-        fig, ax = plt.subplots(1,2,figsize=(11,5.5))
+        fig, ax = plt.subplots(1,2,figsize=(9,5))
         
         ax[0].scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], s=0.67, zorder=5, color='deepskyblue', 
                       label='HDS Samples')
