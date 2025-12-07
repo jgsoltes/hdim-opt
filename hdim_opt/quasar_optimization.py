@@ -58,9 +58,12 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
                 print(f'Initializing: Random population (N={popsize}, D={n_dimensions}).')
             initial_population = np.random.uniform(low=bounds[:, 0], high=bounds[:, 1], size=(popsize, n_dimensions))
     else:
-        initial_population = init
+        if init.ndim == 1:
+            initial_population = init.reshape(-1,1)
+        else:
+            initial_population = init   
         if verbose:
-            custom_popsize, custom_n_dimensions = init.shape
+            custom_popsize, custom_n_dimensions = initial_population.shape
             print(f'Initializing: Custom population (N={custom_popsize}, D={custom_n_dimensions}).')
 
     return initial_population

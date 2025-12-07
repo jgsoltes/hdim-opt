@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.2.1" # match __version__ in __init__.py
+version = "1.2.2" # match __version__ in __init__.py
 description = "Optimization toolkit for high-dimensional, non-differentiable problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
