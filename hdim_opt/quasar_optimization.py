@@ -32,14 +32,14 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     
             # generate samples
             if verbose:
-                print(f'Initializing: Hyperellipsoid population (N={popsize}, D={n_dimensions}).')
+                print(f'Initializing: Hyperellipsoid pop. (N={popsize}, D={n_dimensions}).')
             initial_population = hds.sample(popsize, bounds, weights=hds_weights, 
                                             seed=seed, verbose=False)
     
         # generate sobol sequence
         elif init == 'sobol':
             if verbose:
-                print(f'Initializing: Sobol population (N={popsize}, D={n_dimensions}).')
+                print(f'Initializing: Sobol (N={popsize}, D={n_dimensions}).')
             import warnings
             warnings.filterwarnings('ignore', category=UserWarning) # ignore power-of-2 warning
             sobol_sampler = stats.qmc.Sobol(d=n_dimensions, seed=seed)
@@ -48,14 +48,14 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     
         elif (init == 'lhs') or (init == 'latinhypercube'):
             if verbose:
-                print(f'Initializing: Latin Hypercube population (N={popsize}, D={n_dimensions}).')
+                print(f'Initializing: Latin Hypercube (N={popsize}, D={n_dimensions}).')
             lhs_sampler = stats.qmc.LatinHypercube(d=n_dimensions, seed=seed)
             lhs_samples_unit = lhs_sampler.random(n=popsize)
             initial_population = stats.qmc.scale(lhs_samples_unit, bounds[:, 0], bounds[:, 1])
     
         elif init == 'random':
             if verbose:
-                print(f'Initializing: Random population (N={popsize}, D={n_dimensions}).')
+                print(f'Initializing: Random (N={popsize}, D={n_dimensions}).')
             initial_population = np.random.uniform(low=bounds[:, 0], high=bounds[:, 1], size=(popsize, n_dimensions))
     else:
         if init.ndim == 1:
@@ -64,7 +64,7 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
             initial_population = init   
         if verbose:
             custom_popsize, custom_n_dimensions = initial_population.shape
-            print(f'Initializing: Custom population (N={custom_popsize}, D={custom_n_dimensions}).')
+            print(f'Initializing: Custom (N={custom_popsize}, D={custom_n_dimensions}).')
 
     return initial_population
 
@@ -374,7 +374,7 @@ def optimize(func, bounds, args=(),
               patience=np.inf, vectorized=False,
               hds_weights=None, kwargs={},
               constraints=None, constraint_penalty=1e9,
-              reinitialization=True, reinitialization_method='covariance',
+              reinitialization_method='covariance',
               verbose=True, plot_solutions=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
@@ -382,6 +382,7 @@ def optimize(func, bounds, args=(),
     Objective:
         - Finds the optimal solution for a given objective function.
         - Designed for non-differentiable, high-dimensional problems.
+        - For explorative problems chance reinitialization_method to '
         - Test functions available for local testing, called as hdim_opt.test_functions.function_name.
             - Existing test functions: [rastrigin, ackley, sinusoid, sphere, shubert].
             
@@ -432,13 +433,11 @@ def optimize(func, bounds, args=(),
                                         }
         - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
 
-        - reinitialization: Boolean to disable covariance reinitialization if needed.
-            - For cases where the population size is computationally prohibitive.
-            - Disabled by default for 1D problems.
         - reinitialization_method: Type of re-sampling to use in the asymptotic reinitialization.
             - Options are ['covariance', 'sobol'].
             - 'covariance' (exploitative) is default for most problems.
             - 'sobol' (explorative) is optional, for high exploration and faster computation.
+            - None to disable reinitialization calculations.
         
         - verbose: Displays prints and plots.
             - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()
@@ -508,9 +507,11 @@ def optimize(func, bounds, args=(),
     if not isinstance(init, str):
         popsize = init.shape[0]
 
-    # default popsize to 10*n_dimensions
+    # default popsize to highest power of 2 from 10*n_dimensions
     if popsize == None:
-        popsize = min(2**7,10*n_dimensions)
+        min_popsize = 2**7
+        default_popsize = int(2**np.ceil(np.log2(10*n_dimensions)))
+        popsize = max(min_popsize, default_popsize)
         
     # ensure integers
     popsize, maxiter = int(popsize), int(maxiter)
@@ -536,7 +537,11 @@ def optimize(func, bounds, args=(),
     # generate initial population
     initial_population = initialize_population(popsize, bounds, init, hds_weights, seed, verbose)
     if verbose:
-        print('\nEvolving population:')
+        if reinitialization_method not in ['sobol', 'covariance', None]:
+            print("reinitialization_method must be one of ['covariance', 'sobol', None].")
+            print(f'\nEvolving (None):')
+        else:
+            print(f'\nEvolving ({reinitialization_method}):')
 
     # match differential evolution conventions    
     if vectorized:
@@ -643,7 +648,7 @@ def optimize(func, bounds, args=(),
         # apply asymptotic covariance reinitialization to population
         final_proba = 0.33
         decay_generation = 0.33
-        if reinitialization:
+        if reinitialization_method in ['sobol','covariance']:
             reinit_proba = np.e**((np.log(final_proba)/(decay_generation*maxiter))*generation)
         else:
             reinit_proba = 0.0
