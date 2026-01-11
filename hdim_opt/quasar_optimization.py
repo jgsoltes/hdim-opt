@@ -32,7 +32,7 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     
             # generate samples
             if verbose:
-                print(f'Initializing: Hyperellipsoid pop. (N={popsize}, D={n_dimensions}).')
+                print(f'Initializing: Hyperellipsoid (N={popsize}, D={n_dimensions}).')
             initial_population = hds.sample(popsize, bounds, weights=hds_weights, 
                                             seed=seed, verbose=False)
     

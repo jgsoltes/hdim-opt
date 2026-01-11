@@ -472,10 +472,8 @@ def sample(n_samples, bounds,
         print('    - number of samples:', len(hds_sequence))
         print(f'    - sample generation time: {sample_generation_time:.2f}')
         print(f'    - number of hyperellipsoids: {n_hyperellipsoids}')
-        print(f'    - number of initial QMC: {n_initial_qmc}')
-        print(f'    - number of initial clusters: {n_initial_clusters}')
         if weights:
-            print(f'    - gaussian weights: {weights}')
+            print(f'    - weights: {weights}')
         
         # generate a sobol sequence for comparison
         sobol_sampler = stats.qmc.Sobol(d=n_dimensions, seed=seed+2) # offset seed to be different from initial qmc
@@ -492,10 +490,8 @@ def sample(n_samples, bounds,
         sobol_std = np.std(sobol_samples)
 
         print('\nstats:')
-        print(f'    - mean HDS: {hds_mean:.2f}')
-        print(f'    - mean comparison QMC: {sobol_mean:.2f}')
-        print(f'    - stdev HDS: {hds_std:.2f}')
-        print(f'    - stdev comparison QMC: {sobol_std:.2f}\n')
+        print(f'    - HDS mean: {hds_mean:.2f}')
+        print(f'    - HDS stdev: {hds_std:.2f}\n')
 
         # dendrogram of centroids
         if plot_dendrogram:

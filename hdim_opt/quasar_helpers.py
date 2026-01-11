@@ -1,6 +1,55 @@
 # global imports
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
 import numpy as np
+from scipy.linalg import cholesky, solve_triangular
 epsilon = 1e-12
+
+def isotropize(data):
+    '''
+    Objective: 
+        - Converts data to isotropic space. Removes correlations and scales to mean and variance.
+        - Promotes optimization stability.
+    Inputs: 
+        - data: Input data.
+    Outputs: 
+        - data_isotropic: Isotropized data.
+        - metadata: Scaler and whitening matrix 
+    '''
+    
+    # convert to array
+    X = np.array(data)
+    
+    # standard scaling (mean = 0, var = 1)
+    mean = np.mean(X, axis=0)
+    stdev = np.std(X, axis=0)
+    X_centered = (X - mean) / stdev
+    
+    # whitening parameters
+    n_dims = X_centered.shape[1]
+    cov = np.cov(X_centered, rowvar=False) + np.eye(n_dims) * epsilon
+    L = cholesky(cov, lower=True)
+    
+    # transform Y = (X_centered) @ (L^-1).T
+    data_iso = solve_triangular(L, X_centered.T, lower=True).T
+    
+    # store parameters for deisotropization
+    params = {
+        'mean': mean,
+        'stdev': stdev,
+        'L': L
+    }
+    return data_iso, params
+
+def deisotropize(data_iso, params):
+    '''De-isotropize data to its original parameter space.'''
+    
+    # reverse whitening: X_centered = Y @ L.T
+    data_centered = np.dot(data_iso, params['L'].T)
+    
+    # reverse scaling: X = (X_centered * std) + mean
+    data_original = (data_centered * params['stdev']) + params['mean']
+    return data_original
 
 ############## CONSTRAINTS ##############
 def apply_penalty(fitnesses, solutions, constraints, constraint_penalty, vectorized):

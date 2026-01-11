@@ -1,12 +1,13 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-A modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm and HDS exploitative QMC sampler.
+A modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, and signal waveform decomposition.
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
 * **quasar**: QUASAR optimization for high-dimensional, non-differentiable problems.
 * **hds**: Generate an exploitative HDS sequence, to distribute samples in focused regions.
 * **sobol**: Generate a uniform Sobol sequence (via SciPy).
 * **sensitivity**: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
+* **waveform**: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
 
 ---
 
@@ -24,15 +25,21 @@ pip install hdim_opt
 import hdim_opt as h
 
 # Parameter Space
-n_dimensions = 100
+n_dimensions = 30
 bounds = [(-100,100)] * n_dimensions
 n_samples = 1000
 obj_func = h.test_functions.rastrigin
+time, pulse = h.waveform_analysis.e1_waveform()
 
+# Functions
 solution, fitness = h.quasar(obj_func, bounds)
 sens_matrix = h.sensitivity(obj_func, bounds)
+
 hds_samples = h.hds(n_samples, bounds)
 sobol_samples = h.sobol(n_samples, bounds)
+isotropic_samples = h.isotropize(sobol_samples)
+
+signal_data = h.waveform(x=time,y=pulse)
 ```
 
 ## QUASAR Optimizer

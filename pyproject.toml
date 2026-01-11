@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.2.3" # match __version__ in __init__.py
+version = "1.3.0" # match __version__ in __init__.py
 description = "Optimization toolkit for high-dimensional, non-differentiable problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
@@ -16,7 +16,7 @@ authors = [
 
 license = { text = "MIT" }
 requires-python = ">=3.8"
-keywords = ["optimization", "high-dimensional", "sampling", "QUASAR", "HDS"]
+keywords = ["optimization", "high-dimensional", "sampling", "QUASAR", "hyperellipsoid"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
