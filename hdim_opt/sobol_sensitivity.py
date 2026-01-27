@@ -1,4 +1,4 @@
-def sens_analysis(func, bounds, n_samples=None, 
+def sens_analysis(func, bounds, n_samples=2**7, 
                   kwargs=None, param_names=None,
                   verbose=True, log_scale=True):
     '''
@@ -24,19 +24,16 @@ def sens_analysis(func, bounds, n_samples=None,
         from SALib.analyze import sobol as sobol_analyze
         import pandas as pd
         from functools import partial
+        import time
     except ImportError as e:
         raise ImportError(f'Sensitivity analysis requires dependencies: (SALib, pandas, functools).') from e
-    
+    start_time = time.time()
     
     # define input parameters and their ranges
     bounds = np.array(bounds)
     n_params = bounds.shape[0]
     if param_names == None:
         param_names = range(0,n_params)
-
-    # scale default n_samples by dimension (power of 2)
-    if n_samples == None:
-        n_samples = int(2**np.ceil(np.log2(10*n_params)))
 
     # define problem
     problem = {
@@ -68,7 +65,10 @@ def sens_analysis(func, bounds, n_samples=None,
     S2_df = S2_df.fillna(S2_df.T)
     mask = np.tril(np.ones_like(S2_df, dtype=bool))
 
+    end_time = time.time()
+    run_time = end_time - start_time
     if verbose:
+        print(f'\nRun time: {run_time:.2f}s')
         # import
         try:
             import matplotlib.pyplot as plt
@@ -114,6 +114,7 @@ def sens_analysis(func, bounds, n_samples=None,
         
         axs[0].set_yticks(index)
         axs[0].set_yticklabels(names_sorted)
+        axs[0].legend()
         
         # plot 2: heatmap of second order indices
         sns.heatmap(data=S2_df, mask=mask, cbar_kws={'label': 'Second-order Index ($S_2$)'},ax=axs[1]) # magma

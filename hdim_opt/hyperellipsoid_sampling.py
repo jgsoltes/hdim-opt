@@ -1,5 +1,5 @@
 # global epslion
-epsilon = 1e-12
+epsilon = 1e-16
 
 ### misc helper functions 
 
@@ -179,6 +179,7 @@ def fit_pca_for_cluster(cluster_samples, current_origin, initial_samples_std, n_
 def sample(n_samples, bounds,
            weights=None, normalize=False,
            n_ellipsoids=None, n_initial_clusters=None, n_initial_qmc=None,
+           ellipsoid_scaling_factor=None,
            seed=None, plot_dendrogram=False, verbose=False):
     '''
     Objective:
@@ -367,11 +368,12 @@ def sample(n_samples, bounds,
     confidence_level = 0.9999 # captures 99.99% of cluster's samples
 
     # critical value (the statistical radius squared)
-    chi2_critical_value = stats.chi2.ppf(confidence_level, df=n_dimensions)
-    baseline_factor = 0.55 - 0.01*np.log(n_dimensions) # empirically derived to resample out-of-bounds points
-    
-    # square root as the scaling factor (Mahalanobis distance)
-    ellipsoid_scaling_factor = baseline_factor * np.sqrt(chi2_critical_value)
+    if ellipsoid_scaling_factor == None:
+        chi2_critical_value = stats.chi2.ppf(confidence_level, df=n_dimensions)
+        baseline_factor = 0.55 - 0.01*np.log(n_dimensions) # empirically derived to resample out-of-bounds points
+        
+        # square root as the scaling factor (Mahalanobis distance)
+        ellipsoid_scaling_factor = baseline_factor * np.sqrt(chi2_critical_value)
 
     # QMC sequence for radius scaling
     radius_qmc_sampler = stats.qmc.Sobol(d=1, seed=seed+1) # offset seed from initial qmc

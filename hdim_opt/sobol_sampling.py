@@ -4,7 +4,7 @@ import numpy as np
 def sobol_sample(n_samples, bounds, normalize=False, seed=None):
     '''
     Objective:
-        - Generate a uniform scrambled Sobol sample sequence.
+        - Generates a uniform scrambled Sobol sample sequence.
     Inputs:
         - n_samples: Number of samples to generate.
         - bounds: Range to sample over.

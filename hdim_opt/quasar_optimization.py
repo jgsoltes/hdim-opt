@@ -371,10 +371,10 @@ def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, vect
 def optimize(func, bounds, args=(),
               init='sobol', popsize=None, maxiter=100,
               entangle_rate=0.33, polish=True, polish_minimizer=None,
-              patience=np.inf, vectorized=False,
-              hds_weights=None, kwargs={},
+              patience=np.inf, tolerance=-np.inf, vectorized=False,
+              kwargs={},
               constraints=None, constraint_penalty=1e9,
-              reinitialization_method='covariance',
+              reinitialization='covariance', hds_weights=None,
               verbose=True, plot_solutions=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
@@ -382,7 +382,6 @@ def optimize(func, bounds, args=(),
     Objective:
         - Finds the optimal solution for a given objective function.
         - Designed for non-differentiable, high-dimensional problems.
-        - For explorative problems chance reinitialization_method to '
         - Test functions available for local testing, called as hdim_opt.test_functions.function_name.
             - Existing test functions: [rastrigin, ackley, sinusoid, sphere, shubert].
             
@@ -413,11 +412,10 @@ def optimize(func, bounds, args=(),
             - Recommended to place constraints in objective function to use Powell.
         
         - patience: Number of generations without improvement before early convergence.
+        - tolerance: Target objective function value for early convergence.
         - vectorized: Boolean to accept vectorized (N,D) objective functions 
-            - Extremely efficient, highly recommended whenever possible.
+            - Highly efficient, recommended when possible.
         
-        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
-            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
         - kwargs: Dictionary of keyword arguments for the objective function.
 
         - constraints: Dictionary of constraints to penalize.
@@ -433,11 +431,13 @@ def optimize(func, bounds, args=(),
                                         }
         - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
 
-        - reinitialization_method: Type of re-sampling to use in the asymptotic reinitialization.
+        - reinitialization: Type of re-sampling to use in the asymptotic reinitialization.
             - Options are ['covariance', 'sobol'].
-            - 'covariance' (exploitative) is default for most problems.
+            - 'covariance' (exploitative) is default for N > D problems.
             - 'sobol' (explorative) is optional, for high exploration and faster computation.
             - None to disable reinitialization calculations.
+        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
+            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
         
         - verbose: Displays prints and plots.
             - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()
@@ -499,10 +499,7 @@ def optimize(func, bounds, args=(),
     # ensure bounds is array; shape (n_dimensions,2)
     bounds = np.array(bounds)
     n_dimensions = bounds.shape[0]
-
-    if n_dimensions == 1:
-        reinitialization = False
-        
+    
     # if init is not a string, assume it is a custom population
     if not isinstance(init, str):
         popsize = init.shape[0]
@@ -516,7 +513,11 @@ def optimize(func, bounds, args=(),
     # ensure integers
     popsize, maxiter = int(popsize), int(maxiter)
 
+    # map to sobol if N < D
+    if n_dimensions == 1:
+        reinitialization = None
     
+        
     ################################# INPUT ERRORS #################################
     
     # entangle rate error
@@ -537,11 +538,11 @@ def optimize(func, bounds, args=(),
     # generate initial population
     initial_population = initialize_population(popsize, bounds, init, hds_weights, seed, verbose)
     if verbose:
-        if reinitialization_method not in ['sobol', 'covariance', None]:
-            print("reinitialization_method must be one of ['covariance', 'sobol', None].")
+        if reinitialization not in ['sobol', 'covariance', None]:
+            print("reinitialization must be one of ['covariance', 'sobol', None].")
             print(f'\nEvolving (None):')
         else:
-            print(f'\nEvolving ({reinitialization_method}):')
+            print(f'\nEvolving ({reinitialization}):')
 
     # match differential evolution conventions    
     if vectorized:
@@ -648,12 +649,12 @@ def optimize(func, bounds, args=(),
         # apply asymptotic covariance reinitialization to population
         final_proba = 0.33
         decay_generation = 0.33
-        if reinitialization_method in ['sobol','covariance']:
+        if (reinitialization in ['sobol','covariance']):
             reinit_proba = np.e**((np.log(final_proba)/(decay_generation*maxiter))*generation)
         else:
             reinit_proba = 0.0
         if np.random.rand() < reinit_proba:
-            population = asym_reinit(population, current_fitnesses, bounds, reinitialization_method, seed, vectorized=vectorized)
+            population = asym_reinit(population, current_fitnesses, bounds, reinitialization, seed, vectorized=vectorized)
 
         # clip population to bounds
         if vectorized:
@@ -685,9 +686,12 @@ def optimize(func, bounds, args=(),
         # patience for early convergence
         if (generation - last_improvement_gen) > patience:
             if verbose:
-                print(f'\nEarly convergence: number of generations without improvement exceeds patience ({patience}).')
+                print(f'Early convergence: number of generations without improvement exceeds patience ({patience}).')
             break
-
+        if best_fitness <= tolerance:
+            if verbose:
+                print(f'Early convergence: f(x) below tolerance ({tolerance:.2e}).')
+            break
     
     ################################# POLISH #################################
     
@@ -703,7 +707,7 @@ def optimize(func, bounds, args=(),
                                         maxiter=maxiter, vectorized=vectorized, constraints=constraints, 
                                         args=args, kwargs=kwargs, 
                                         polish_minimizer=polish_minimizer, verbose=verbose
-    )
+        )
 
     
     ################################# VERBOSE #################################

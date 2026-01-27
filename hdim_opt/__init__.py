@@ -4,10 +4,11 @@
 
 Functions:
 	- quasar: QUASAR optimization for high-dimensional, non-differentiable problems.
-	- hds: Generate an exploitative HDS sequence, to distribute samples in focused regions.
+	- hyperellipsoid: Generate a non-uniform hyperellipsoid density sequence.
 	- sobol: Generate a uniform Sobol sequence (via SciPy).
 	- sensitivity: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
-	- waveform: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
+	- waveform: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary (work in progress).
+	- isotropize: Isotropize the input matrix using zero-phase component analysis.
 
 Modules:
 	- test_functions: Contains test functions for local optimization testing.
@@ -29,7 +30,7 @@ Example Usage:
 	>>> solution, fitness = h.quasar(obj_func, bounds)
 	>>> sens_matrix = h.sensitivity(obj_func, bounds)
 
-	>>> hds_samples = h.hds(n_samples, bounds)
+	>>> hds_samples = h.hyperellipsoid(n_samples, bounds)
 	>>> sobol_samples = h.sobol(n_samples, bounds)
 	>>> isotropic_samples = h.isotropize(sobol_samples)
 
@@ -37,12 +38,12 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.3.0"
-__all__ = ['quasar', 'hds', 'sobol', 'sensitivity', 'test_functions', 'quasar_helpers'] # available for star imports
+__version__ = "1.3.1"
+__all__ = ['quasar', 'hyperellipsoid', 'sobol', 'sensitivity', 'test_functions', 'quasar_helpers','waveform'] # available for star imports
 
 # import core components
 from .quasar_optimization import optimize as quasar
-from .hyperellipsoid_sampling import sample as hds
+from .hyperellipsoid_sampling import sample as hyperellipsoid
 from .sobol_sampling import sobol_sample as sobol
 from .sobol_sensitivity import sens_analysis as sensitivity
 from .waveform_analysis import analyze_waveform as waveform

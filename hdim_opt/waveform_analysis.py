@@ -440,7 +440,10 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     im = ax_spec.pcolormesh(t_spec*1e6, f, 10*np.log10(Sxx + epsilon), 
                             shading='gouraud', cmap='plasma')
     
+    ax_spec.set_title('Spectrogram')
     ax_spec.set_yscale('log')
     ax_spec.set_ylim(np.abs(spectral['freq']).min()+epsilon, np.abs(spectral['freq'].max()/sample_rate))
+    cbar = fig.colorbar(im, ax=ax_spec)
+    cbar.set_label('Power/Frequency (dB/Hz)')
 
     plt.show()

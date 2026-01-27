@@ -4,7 +4,7 @@ A modern optimization package to accelerate convergence in complex, high-dimensi
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
 * **quasar**: QUASAR optimization for high-dimensional, non-differentiable problems.
-* **hds**: Generate an exploitative HDS sequence, to distribute samples in focused regions.
+* **hyperellipsoid**: Generate a non-uniform Hyperellipsoid Density sequence, to focus sample distributions.
 * **sobol**: Generate a uniform Sobol sequence (via SciPy).
 * **sensitivity**: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
 * **waveform**: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
@@ -35,7 +35,7 @@ time, pulse = h.waveform_analysis.e1_waveform()
 solution, fitness = h.quasar(obj_func, bounds)
 sens_matrix = h.sensitivity(obj_func, bounds)
 
-hds_samples = h.hds(n_samples, bounds)
+hds_samples = h.hyperellipsoid(n_samples, bounds)
 sobol_samples = h.sobol(n_samples, bounds)
 isotropic_samples = h.isotropize(sobol_samples)
 
@@ -47,7 +47,7 @@ signal_data = h.waveform(x=time,y=pulse)
 
 * Benefit: Significant improvements in convergence speed and solution quality compared to contemporary optimizers. (Reference: [https://arxiv.org/abs/2511.13843]).
 
-## HDS Sampler (Hyperellipsoid Density Sampling)
-**HDS** is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the search space.
+## HDS Sampler
+**HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the search space.
 
 * Benefit: Provides control over the sample distribution. Results in higher average optimization solution quality when used for population initialization compared to uniform QMC methods. (Reference: [https://arxiv.org/abs/2511.07836]).

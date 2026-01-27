@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.3.0" # match __version__ in __init__.py
-description = "Optimization toolkit for high-dimensional, non-differentiable problems."
+version = "1.3.1" # match __version__ in __init__.py
+description = "High-dimensional global optimization and sampling toolkit for complex and non-differentiable problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
 authors = [
@@ -16,16 +16,38 @@ authors = [
 
 license = { text = "MIT" }
 requires-python = ">=3.8"
-keywords = ["optimization", "high-dimensional", "sampling", "QUASAR", "hyperellipsoid"]
+keywords = [
+    "optimization", 
+    "high-dimensional", 
+    "sampling", 
+    "QUASAR", 
+    "hyperellipsoid",
+    "evolutionary-algorithm",
+    "non-differentiable",
+    "global-optimization",
+    "stochastic-optimization",
+    "black-box-optimization"
+]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Natural Language :: English",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Physics",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Bio-Informatics"
 ]
 dependencies = ["numpy", "scipy"]
 
@@ -44,7 +66,10 @@ sensitivity = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/jgsoltes/hdim_opt"
 Repository = "https://github.com/jgsoltes/hdim_opt"
+Issues = "https://github.com/jgsoltes/hdim_opt/issues"
+Changelog = "https://github.com/jgsoltes/hdim_opt/releases"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -2,52 +2,52 @@
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import numpy as np
-from scipy.linalg import cholesky, solve_triangular
-epsilon = 1e-12
+epsilon = 1e-16
 
 def isotropize(data):
     '''
     Objective: 
-        - Converts data to isotropic space. Removes correlations and scales to mean and variance.
-        - Promotes optimization stability.
-    Inputs: 
-        - data: Input data.
-    Outputs: 
-        - data_isotropic: Isotropized data.
-        - metadata: Scaler and whitening matrix 
+        - Converts data to isotropic space using Zero-Phase Component Analysis (ZCA).
+        - Maintains original feature orientation while removing correlations.
     '''
+    from scipy.linalg import eigh
     
     # convert to array
     X = np.array(data)
     
     # standard scaling (mean = 0, var = 1)
     mean = np.mean(X, axis=0)
-    stdev = np.std(X, axis=0)
+    stdev = np.std(X, axis=0) + epsilon # Add epsilon to avoid div0
     X_centered = (X - mean) / stdev
     
-    # whitening parameters
-    n_dims = X_centered.shape[1]
-    cov = np.cov(X_centered, rowvar=False) + np.eye(n_dims) * epsilon
-    L = cholesky(cov, lower=True)
+    # eigen-decomposition of the correlation matrix
+    cov = np.cov(X_centered, rowvar=False) + np.eye(X_centered.shape[1]) * epsilon
+    eigenvalues, eigenvectors = eigh(cov) # eigh is more stable for symmetric matrices like covariance
     
-    # transform Y = (X_centered) @ (L^-1).T
-    data_iso = solve_triangular(L, X_centered.T, lower=True).T
+    # ZCA whitening matrix: W_zca = U @ diag(1/sqrt(lambda)) @ U.T
+    # transforms data to identity covariance while minimizing rotation
+    diag_inv_sqrt = np.diag(1.0 / np.sqrt(eigenvalues + epsilon))
+    W_zca = eigenvectors @ diag_inv_sqrt @ eigenvectors.T
+    
+    # transform: y = X_centered @ W_zca.T
+    data_iso = np.dot(X_centered, W_zca.T)
     
     # store parameters for deisotropization
     params = {
         'mean': mean,
         'stdev': stdev,
-        'L': L
+        'W_zca': W_zca,
+        'W_zca_inv': eigenvectors @ np.diag(np.sqrt(eigenvalues + epsilon)) @ eigenvectors.T
     }
     return data_iso, params
 
 def deisotropize(data_iso, params):
-    '''De-isotropize data to its original parameter space.'''
+    '''De-isotropize data to its original parameter space via inverse ZCA.'''
     
-    # reverse whitening: X_centered = Y @ L.T
-    data_centered = np.dot(data_iso, params['L'].T)
+    # inverse ZCA: X_centered = y @ W_zca_inv.T
+    data_centered = np.dot(data_iso, params['W_zca_inv'].T)
     
-    # reverse scaling: X = (X_centered * std) + mean
+    # inverse scaling: X = (X_centered * std) + mean
     data_original = (data_centered * params['stdev']) + params['mean']
     return data_original
 
