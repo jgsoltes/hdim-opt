@@ -1,14 +1,15 @@
-# global epslion
+# global epsilon
 epsilon = 1e-16
+import numpy as np
 
 ### misc helper functions 
 
-def sample_hypersphere(n_dimensions, radius, n_samples_in_sphere, radius_qmc_sequence):
+def sample_hypersphere(n_dimensions, radius, 
+                       n_samples_in_sphere, radius_qmc_sequence):
     '''
     Objective:
         - Samples unit hyperspheres using Marsaglia polar vectors scaled by a QMC sequence.
     '''
-    import numpy as np
     
     # generate normal distribution (for angular direction)
     samples = np.random.normal(size=(n_samples_in_sphere, n_dimensions))
@@ -28,14 +29,15 @@ def sample_hypersphere(n_dimensions, radius, n_samples_in_sphere, radius_qmc_seq
     
     return samples
 
-def sample_hyperellipsoid(n_dimensions, n_samples_in_ellipsoid, origin, pca_components, pca_variances, scaling_factor, radius_qmc_sequence=None):
+def sample_hyperellipsoid(n_dimensions, n_samples_in_ellipsoid, 
+                          origin, pca_components, pca_variances, 
+                          scaling_factor, radius_qmc_sequence=None):
     '''
     Objective:
         - Generates samples inside the hyperellipsoid.
             - Calls the function to sample unit hyperspheres.
             - Transforms the hyperspherical samples to the ellipsoid axes defined using the PCA variances.
     '''
-    import numpy as np
     
     # generate samples in unit hypersphere
     unit_sphere_samples = sample_hypersphere(n_dimensions, 1.0, n_samples_in_ellipsoid, radius_qmc_sequence)
@@ -61,7 +63,6 @@ def sample_in_voids(existing_samples, n_to_fill, bounds_min, bounds_max,
     '''
     from sklearn.neighbors import BallTree
     from sklearn.random_projection import GaussianRandomProjection
-    import numpy as np
     from scipy import stats
     import time
     
@@ -146,14 +147,14 @@ def sample_in_voids(existing_samples, n_to_fill, bounds_min, bounds_max,
     
     return new_samples
 
-def fit_pca_for_cluster(cluster_samples, current_origin, initial_samples_std, n_dimensions):
+def fit_pca_for_cluster(cluster_samples, current_origin, 
+                        initial_samples_std, n_dimensions):
     '''
     Performs PCA on a single cluster's samples or returns a default, 
     called in parallel.
     '''
 
     from sklearn.decomposition import PCA
-    import numpy as np
     
     # extract shape
     n_cluster_samples = len(cluster_samples)
@@ -174,7 +175,7 @@ def fit_pca_for_cluster(cluster_samples, current_origin, initial_samples_std, n_
                 'variances': fixed_variance}
 
 
-# main sample function
+### main sampling function
 
 def sample(n_samples, bounds,
            weights=None, normalize=False,
@@ -209,7 +210,6 @@ def sample(n_samples, bounds,
 
     # imports
     try:
-        import numpy as np
         import pandas as pd
         from scipy import stats
         from joblib import Parallel, delayed
@@ -524,7 +524,6 @@ def sample(n_samples, bounds,
 
         
         ### PCA for n_dim > 2:
-        
         if normalize:
             data_to_plot_raw = initial_samples
         else:
@@ -548,8 +547,6 @@ def sample(n_samples, bounds,
             xlabel_str = f'Dimension 0'
             ylabel_str = f'Dimension 1'
 
-        # dark visualization parameters for better sample visuals
-
         # samples
         fig, ax = plt.subplots(1,2,figsize=(9,5))
         
@@ -568,7 +565,6 @@ def sample(n_samples, bounds,
         ax[0].set_title(title_str, fontsize=14)
         ax[0].set_xlabel(xlabel_str)
         ax[0].set_ylabel(ylabel_str)
-        # ax[0].axis(False)
         ax[0].legend(loc=(0.7,0.87), fontsize=8)
 
         # plot histograms

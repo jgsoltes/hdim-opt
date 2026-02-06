@@ -164,7 +164,6 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
             
         # greedy elitism selection
         selection_indices = trial_fitnesses < fitnesses
-        
         new_population = np.where(selection_indices[np.newaxis, :], trial_vectors, population)
         new_fitnesses = np.where(selection_indices, trial_fitnesses, fitnesses)
         
@@ -263,7 +262,7 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
         
     return new_population, new_fitnesses
 
-def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, vectorized):
+def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, generation, vectorized):
     '''
     Objective:
         - Reinitializes the worst 33% solutions in the population.
@@ -340,7 +339,7 @@ def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, vect
     elif reinit_method == 'sobol':
         
         # generate sobol samples
-        sobol_sampler = stats.qmc.Sobol(d=dimensions, seed=seed) 
+        sobol_sampler = stats.qmc.Sobol(d=dimensions, seed=seed+generation) 
         sobol_samples_unit = sobol_sampler.random(n=num_to_replace)
         
         bounds_low = bounds[:, 0]
@@ -367,7 +366,6 @@ def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, vect
     
 
 # main optimize function
-
 def optimize(func, bounds, args=(),
               init='sobol', popsize=None, maxiter=100,
               entangle_rate=0.33, polish=True, polish_minimizer=None,
@@ -392,24 +390,24 @@ def optimize(func, bounds, args=(),
         - kwargs: Dictionary of keyword arguments for the objective function.
 
         - init: Initial population sampling method. 
-            - Defaults to 'sobol'. (Recommended power-of-2 population sizes for maximum uniformity).
+            - Defaults to 'sobol' (recommended power-of-2 population sizes for maximum uniformity).
             - Existing options are:
-                - 'sobol': Sobol (highly uniform QMC; powers of 2 population sizes recommended).
-                - 'hds': Hyperellipsoid Density (non-uniform; density weights 'hds_weights' recommended). 
-                - 'lhs': Latin Hypercube (uniform QMC).
-                - 'random': Random sampling (uniform).
+                - 'sobol': Sobol (spatially uniform; power of 2 population sizes recommended).
+                - 'hds': Hyperellipsoid (non-uniform; density weights 'hds_weights' recommended).
+                - 'lhs': Latin Hypercube (uniform across each dimension).
+                - 'random': Random sampling (quasi-uniform).
                 -  custom population (N x D matrix).
-        - popsize: Number of solution vectors to evolve (default 10 * n_dimensions).
-            - Recommended to be a power of 2 for Sobol initialization.
+        - popsize: Number of solution vectors to evolve (default is next power of 2 of 10 * n_dimensions).
         - maxiter: Number of generations to evolve (default 100).
             
         - entangle_rate: Probability of solutions using the local Spooky-Best mutation strategy.
-            - Defaults to 0.33. This causes to the three mutation strategies to be applied equally. 
+            - Defaults to 0.33; each mutation strategy is applied equally. 
             - Higher implies more exploitation.
+            
         - polish: Boolean to implement final polishing step, using SciPy.optimize.minimize.
-        - polish_minimizer: Minimization function to use for polishing step (using SciPy naming conventions).
+        - polish_minimizer: Name of Scipy minimization function to polish with.
             - Defaults to 'Powell' minimization, or 'SLSQP' if 'constraints' parameter is provided.
-            - Recommended to place constraints in objective function to use Powell.
+            - Accepts all minimizers ('L-BFGS-B', ...).
         
         - patience: Number of generations without improvement before early convergence.
         - tolerance: Target objective function value for early convergence.
@@ -446,7 +444,7 @@ def optimize(func, bounds, args=(),
         
         - workers: Number of workers / jobs / cores to use.
             - Default is 1. Set to -1 to use all available.
-            - If workers != 1, constraint & objective functions must be imported from external module, for pickling.
+            - If workers != 1, constraint & objective functions must be imported from external module for pickling.
         - seed: Random seed for deterministic & reproducible results.
         
     Outputs:
@@ -529,8 +527,8 @@ def optimize(func, bounds, args=(),
         raise ValueError("Initial sampler must be one of ['sobol','random','hds','lhs'], or a custom population.")
     
     # patience error
-    if patience <= 1:
-        raise ValueError('Patience must be > 1 generation.')
+    if patience < 1:
+        raise ValueError('Patience must be > 0 generations.')
 
     
     ################################# INITIAL POPULATION #################################
@@ -654,7 +652,7 @@ def optimize(func, bounds, args=(),
         else:
             reinit_proba = 0.0
         if np.random.rand() < reinit_proba:
-            population = asym_reinit(population, current_fitnesses, bounds, reinitialization, seed, vectorized=vectorized)
+            population = asym_reinit(population, current_fitnesses, bounds, reinitialization, seed, generation, vectorized=vectorized)
 
         # clip population to bounds
         if vectorized:
@@ -664,19 +662,19 @@ def optimize(func, bounds, args=(),
 
         # add to population history
         if verbose:
-          # determine which solutions to sample
-          if popsize <= num_to_plot:
-              indices_to_sample = np.arange(popsize)
-          else:
-              indices_to_sample = np.random.choice(popsize, num_to_plot, replace=False)
-        
-          if vectorized:
-              sampled_population = population[:, indices_to_sample].T.copy()
-          else:
-              sampled_population = population[indices_to_sample].copy()
-              
-          pop_history.append(sampled_population)
-          best_history.append(best_solution.copy())
+            # determine which solutions to sample
+            if popsize <= num_to_plot:
+                indices_to_sample = np.arange(popsize)
+            else:
+                indices_to_sample = np.random.choice(popsize, num_to_plot, replace=False)
+            
+            if vectorized:
+                sampled_population = population[:, indices_to_sample].T.copy()
+            else:
+                sampled_population = population[indices_to_sample].copy()
+            
+            pop_history.append(sampled_population)
+            best_history.append(best_solution.copy())
 
         # print generation status
         if verbose:
@@ -684,9 +682,9 @@ def optimize(func, bounds, args=(),
             print(f' Gen. {generation+1}/{maxiter} | f(x)={best_fitness:.2e} | stdev={stdev:.2e} | reinit={reinit_proba:.2f}')
 
         # patience for early convergence
-        if (generation - last_improvement_gen) > patience:
+        if last_improvement_gen >= patience:
             if verbose:
-                print(f'Early convergence: number of generations without improvement exceeds patience ({patience}).')
+                print(f'Early convergence: patience exceeded ({patience}).')
             break
         if best_fitness <= tolerance:
             if verbose:

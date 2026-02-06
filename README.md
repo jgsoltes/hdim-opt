@@ -1,12 +1,13 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-A modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, and signal waveform decomposition.
+Modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, signal waveform decomposition, and data transformations.
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
 * **quasar**: QUASAR optimization for high-dimensional, non-differentiable problems.
 * **hyperellipsoid**: Generate a non-uniform Hyperellipsoid Density sequence, to focus sample distributions.
 * **sobol**: Generate a uniform Sobol sequence (via SciPy).
 * **sensitivity**: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
+* **isotropize**: Isotropizes the input matrix.
 * **waveform**: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
 
 ---

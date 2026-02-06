@@ -406,7 +406,7 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     ax_cum.plot(f_mhz, spectral['energy'], color='gold', linewidth=2)
     ax_cum.fill_between(f_mhz, spectral['energy'], color='gold', alpha=0.2)
     ax_cum.axvline(metrics['bw_90_hz'], color='red', linestyle='--', 
-                   label=f'90% Band: {metrics['bw_90_hz']:.1f} MHz')
+                   label=f'90% Band: {metrics['bw_90_hz']:.1e} Hz')
     ax_cum.set_title('Cumulative Energy')
     ax_cum.set_ylabel('Normalized Energy')
     ax_cum.set_xlabel('Frequency (MHz)')
