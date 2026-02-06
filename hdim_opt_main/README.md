@@ -1,0 +1,53 @@
+# hdim-opt: High-Dimensional Optimization Toolkit
+
+A modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, and signal waveform decomposition.
+
+All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
+* **quasar**: QUASAR optimization for high-dimensional, non-differentiable problems.
+* **hyperellipsoid**: Generate a non-uniform Hyperellipsoid Density sequence, to focus sample distributions.
+* **sobol**: Generate a uniform Sobol sequence (via SciPy).
+* **sensitivity**: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
+* **waveform**: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
+
+---
+
+## Installation
+
+Installed via `hdim_opt` directly from PyPI:
+
+```bash
+pip install hdim_opt
+```
+
+## Example Usage:
+
+```python
+import hdim_opt as h
+
+# Parameter Space
+n_dimensions = 30
+bounds = [(-100,100)] * n_dimensions
+n_samples = 1000
+obj_func = h.test_functions.rastrigin
+time, pulse = h.waveform_analysis.e1_waveform()
+
+# Functions
+solution, fitness = h.quasar(obj_func, bounds)
+sens_matrix = h.sensitivity(obj_func, bounds)
+
+hds_samples = h.hyperellipsoid(n_samples, bounds)
+sobol_samples = h.sobol(n_samples, bounds)
+isotropic_samples = h.isotropize(sobol_samples)
+
+signal_data = h.waveform(x=time,y=pulse)
+```
+
+## QUASAR Optimizer
+**QUASAR** (Quasi-Adaptive Search with Asymptotic Reinitialization) is a quantum-inspired evolutionary algorithm, highly efficient for minimizing high-dimensional, non-differentiable, and non-parametric objective functions.
+
+* Benefit: Significant improvements in convergence speed and solution quality compared to contemporary optimizers. (Reference: [https://arxiv.org/abs/2511.13843]).
+
+## HDS Sampler
+**HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the search space.
+
+* Benefit: Provides control over the sample distribution. Results in higher average optimization solution quality when used for population initialization compared to uniform QMC methods. (Reference: [https://arxiv.org/abs/2511.07836]).
