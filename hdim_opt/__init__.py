@@ -3,12 +3,14 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
 Functions:
-	- quasar: QUASAR optimization for high-dimensional, non-differentiable problems.
+	- quasar: QUASAR optimization for high-dimensional problems.
 	- hyperellipsoid: Generate a non-uniform hyperellipsoid density sequence.
-	- sobol: Generate a uniform Sobol sequence (via SciPy).
-	- sensitivity: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
-	- isotropize/deisotropize: Isotropize the input matrix using ZCA.
-	- waveform: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
+	- sensitivity: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
+	- pareto: Easily create a multi-objective Pareto front trade-off analysis using QUASAR.
+
+	- lorentzian: Fit a Lorentzian/Cauchy kernel density estimation to the data ensemble.
+	- isotropize/deisotropize: Isotropize the input data using ZCA.
+	- waveform: Decompose the input waveform signal array into a diagnostic summary.
 
 Modules:
 	- test_functions: Contains test functions for local optimization testing.
@@ -24,30 +26,29 @@ Example Usage:
 	>>> bounds = [(-100,100)] * n_dimensions
 	>>> n_samples = 1000
 	>>> obj_func = h.test_functions.rastrigin
-	>>> time, pulse = h.waveform_analysis.e1_waveform()
 
-	# Functions
+	# Optimization
 	>>> solution, fitness = h.quasar(obj_func, bounds)
-	>>> sens_matrix = h.sensitivity(obj_func, bounds)
+	>>> Si, S2 = h.sensitivity(obj_func, bounds)
+	>>> pareto_front = h.pareto(obj_func, bounds, [])
 
+	# Sampling
 	>>> hds_samples = h.hyperellipsoid(n_samples, bounds)
-	>>> sobol_samples = h.sobol(n_samples, bounds)
-	>>> isotropic_samples = h.isotropize(sobol_samples)
-
-	>>> signal_data = h.waveform(x=time,y=pulse)
+	>>> iso_samples, params = h.isotropize(hds_samples)
+	>>> kde = h.lorentzian(solution, 3.0, hds_samples)
 """
 
 # package version
-__version__ = "1.3.2"
-__all__ = ['quasar','hyperellipsoid','sensitivity','waveform','sobol','isotropize','deisotropize',
-				'test_functions','quasar_helpers','waveform_analysis'] # available for star imports
+__version__ = "1.3.3"
+__all__ = ['quasar','hyperellipsoid','sensitivity','pareto', # available for star imports
+				'lorentzian','isotropize','deisotropize','waveform','sobol',
+				'test_functions','quasar_helpers','waveform_analysis'] # modules
 
 # import core components
 from .quasar_optimization import optimize as quasar
 from .hyperellipsoid_sampling import sample as hyperellipsoid
-from .sobol_sensitivity import sobol_sample as sobol
-from .sobol_sensitivity import sens_analysis as sensitivity
-from .quasar_helpers import isotropize, deisotropize
+from .hyperellipsoid_sampling import sobol_sample as sobol
+from .sens_analysis import sensitivity, lorentzian, pareto, isotropize, deisotropize
 from .waveform_analysis import analyze_waveform as waveform
 from . import test_functions
 from . import quasar_helpers

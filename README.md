@@ -3,12 +3,15 @@
 Modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, signal waveform decomposition, and data transformations.
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
-* **quasar**: QUASAR optimization for high-dimensional, non-differentiable problems.
-* **hyperellipsoid**: Generate a non-uniform Hyperellipsoid Density sequence, to focus sample distributions.
-* **sobol**: Generate a uniform Sobol sequence (via SciPy).
-* **sensitivity**: Perform Sobol sensitivity analysis to measure each variable's importance on objective function results (via SALib).
-* **isotropize**: Isotropizes the input matrix.
-* **waveform**: Decompose the input waveform array (handles time- and frequency-domain via FFT / IFFT) into a diagnostic summary.
+* **quasar**: QUASAR optimization for high-dimensional problems.
+* **hyperellipsoid**: Generate a non-uniform hyperellipsoid density sequence.
+* **sensitivity**: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
+* **pareto**: Easily create a multi-objective Pareto front trade-off analysis using QUASAR.
+
+* **lorentzian**: Fit a Lorentzian/Cauchy kernel density estimation to the data ensemble.
+* **isotropize/deisotropize**: Isotropize the input data using ZCA.
+* **waveform**: Decompose the input waveform signal array into a diagnostic summary.
+
 
 ---
 
@@ -30,17 +33,16 @@ n_dimensions = 30
 bounds = [(-100,100)] * n_dimensions
 n_samples = 1000
 obj_func = h.test_functions.rastrigin
-time, pulse = h.waveform_analysis.e1_waveform()
 
-# Functions
+# Optimization
 solution, fitness = h.quasar(obj_func, bounds)
 sens_matrix = h.sensitivity(obj_func, bounds)
+pareto_front = h.pareto(obj_func, bounds, [])
 
+# Sampling
 hds_samples = h.hyperellipsoid(n_samples, bounds)
-sobol_samples = h.sobol(n_samples, bounds)
-isotropic_samples = h.isotropize(sobol_samples)
-
-signal_data = h.waveform(x=time,y=pulse)
+iso_samples, params = h.isotropize(hds_samples)
+kde = h.lorentzian(solution, 3.0, iso_samples)
 ```
 
 ## QUASAR Optimizer

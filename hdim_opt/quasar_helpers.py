@@ -1,52 +1,6 @@
 # global imports
 import numpy as np
 epsilon = 1e-16
-
-def isotropize(data):
-    '''
-    Objective: 
-        - Isotropizes the input matrix using Zero-Phase Component Analysis (ZCA).
-            - Maintains original parameter orientation while removing correlations.
-        - 'deisotropize' function inverse transforms to the original parameter space.
-    '''
-    from scipy.linalg import eigh
-    # convert to array
-    X = np.array(data)
-    
-    # standard scaling (mean = 0, var = 1)
-    mean = np.mean(X, axis=0)
-    stdev = np.std(X, axis=0) + epsilon # add epsilon to avoid div0
-    X_centered = (X - mean) / stdev
-    
-    # eigen-decomposition of the correlation matrix
-    cov = np.cov(X_centered, rowvar=False) + np.eye(X_centered.shape[1]) * epsilon
-    eigenvalues, eigenvectors = eigh(cov) # eigh is more stable for symmetric matrices like covariance
-    
-    # ZCA whitening matrix: W_zca = U @ diag(1/sqrt(lambda)) @ U.T
-    diag_inv_sqrt = np.diag(1.0 / np.sqrt(np.maximum(eigenvalues, epsilon))) # use maximum to avoid div0
-    W_zca = eigenvectors @ diag_inv_sqrt @ eigenvectors.T # whitening matrix
-    W_zca_inv = (eigenvectors * np.sqrt(np.maximum(eigenvalues, epsilon))) @ eigenvectors.T # save for deisotropization
-
-    # transform: y = X_centered @ W_zca.T
-    data_iso = np.dot(X_centered, W_zca) # no .T needed because W_zca is symmetric
-    
-    # store parameters for deisotropization
-    params = {
-        'mean': mean,
-        'stdev': stdev,
-        'W_zca_inv': W_zca_inv
-    }
-    return data_iso, params
-
-def deisotropize(data_iso, params):
-    '''De-isotropize data to its original parameter space via inverse ZCA.'''
-    
-    # inverse ZCA: X_centered = y @ W_zca_inv.T
-    data_centered = np.dot(data_iso, params['W_zca_inv'].T)
-    
-    # inverse scaling: X = (X_centered * std) + mean
-    data_original = (data_centered * params['stdev']) + params['mean']
-    return data_original
     
 ############## CONSTRAINTS ##############
 def apply_penalty(fitnesses, solutions, constraints, constraint_penalty, vectorized):

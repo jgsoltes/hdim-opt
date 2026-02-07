@@ -323,6 +323,7 @@ def analyze_waveform(x=None, y=None, sample_rate=None, domain='time', method='co
     
     # plot
     if verbose:
+        print('Waveform summary:')
         plot_diagnostic_dashboard(temporal, spectral, metrics)
 
     return temporal, spectral, metrics

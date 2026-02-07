@@ -535,12 +535,15 @@ def optimize(func, bounds, args=(),
     
     # generate initial population
     initial_population = initialize_population(popsize, bounds, init, hds_weights, seed, verbose)
+    
+    # change reinitialization if popsize < n_dimensions
+    if (reinitialization == 'covariance') & (popsize < n_dimensions + 1):
+        reinitialization = 'sobol'
     if verbose:
         if reinitialization not in ['sobol', 'covariance', None]:
-            print("reinitialization must be one of ['covariance', 'sobol', None].")
-            print(f'\nEvolving (None):')
-        else:
-            print(f'\nEvolving ({reinitialization}):')
+            print("Reinitialization must be one of ['covariance', 'sobol', None].")
+            reinitialization = None
+        print(f'\nEvolving ({reinitialization}):')
 
     # match differential evolution conventions    
     if vectorized:
@@ -716,7 +719,7 @@ def optimize(func, bounds, args=(),
 
         # print best fitness
         print(f'- f(x): {best_fitness:.2e}')
-        
+
         # print best solution
         if len(best_solution)>3:
             formatted_display = ', '.join([f'{val:.2e}' for val in best_solution[:3]])
@@ -725,9 +728,34 @@ def optimize(func, bounds, args=(),
             formatted_display = ', '.join([f'{val:.2e}' for val in best_solution])
             print(f'- Solution: [{formatted_display}]')
 
+        print('\nStats:')
+        
+        # final population entropy
+        import warnings
+        warnings.filterwarnings('ignore',category=RuntimeWarning)
+        analysis_pop = population.T if vectorized else population
+        noise = np.random.normal(0, 1e-12, analysis_pop.shape)
+        pop_entropy = np.mean(stats.differential_entropy(analysis_pop+noise)) # add small noise to avoid div0
+        print(f'- Entropy: {pop_entropy:.2f}')
+
+        # mahalanobis distance
+        from scipy.linalg import cho_factor, cho_solve
+        pop_mean = np.mean(analysis_pop, axis=0)
+        diff = best_solution - pop_mean
+        cov_matrix = np.cov(analysis_pop, rowvar=False)
+        cov_matrix += np.eye(n_dimensions) * epsilon
+        try:
+            # covariance Cholesky factor
+            L, low = cho_factor(cov_matrix)
+            inv_cov_diff = cho_solve((L, low), diff)
+            dist = np.sqrt(np.dot(diff, inv_cov_diff)) # distance = sqrt(diff^T * cov^-1 * diff)
+        except np.linalg.LinAlgError:
+            dist = 0.0 # fallback
+        print(f'- Mahalanobis: {dist:.2f}')
+
         # print optimization time
         try:
-            print(f'- Elapsed: {(time.time() - start_time):.3f}s')
+            print(f'- Elapsed: {(time.time() - start_time):.2f}s')
         except Exception as e:
             print(f'- Elapsed: null') # case where time isn't imported
 
