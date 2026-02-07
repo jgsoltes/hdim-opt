@@ -39,7 +39,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.3.3"
+__version__ = "1.3.4"
 __all__ = ['quasar','hyperellipsoid','sensitivity','pareto', # available for star imports
 				'lorentzian','isotropize','deisotropize','waveform','sobol',
 				'test_functions','quasar_helpers','waveform_analysis'] # modules

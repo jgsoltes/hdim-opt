@@ -188,6 +188,7 @@ def isotropize(data):
     params = {
         'mean': mean,
         'stdev': stdev,
+        'W_zca': W_zca,
         'W_zca_inv': W_zca_inv
     }
     return data_iso, params
