@@ -6,17 +6,6 @@ from scipy import signal
 # constants
 epsilon = 1e-12 # to avoid mathematical singularities
 
-# visualization parameters
-plt.rcParams['figure.facecolor'] = 'black'
-plt.rcParams['axes.facecolor'] = 'black'
-plt.rcParams['text.color'] = 'white'
-plt.rcParams['axes.labelcolor'] = 'white'
-plt.rcParams['xtick.color'] = 'white'
-plt.rcParams['ytick.color'] = 'white'
-plt.rcParams['axes.edgecolor'] = 'white'
-plt.rcParams['grid.color'] = 'white'
-plt.rcParams['lines.color'] = 'white'
-
 def apply_noise(signal, noise):
     # adding random gaussian noise within 1% of discrete amplitudes
     stdev = np.std(np.abs(signal))
@@ -374,8 +363,8 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     mag_pos = np.abs(spectral['signal'])[pos_mask]
 
     # time domain
-    ax_time.plot(temporal['time_s']*1e6, temporal['amplitude'], color='cyan', label=f'Peak: {metrics['peak_t']:.2f}')
-    ax_time.set_title(f'Time-Domain Signal')
+    ax_time.plot(temporal['time_s']*1e6, temporal['amplitude'], color='cyan', label=f"Peak: {metrics['peak_t']:.2f}")
+    ax_time.set_title('Time-Domain Signal')
     ax_time.set_xlabel(r'Time ($\mu s$)')
     ax_time.set_ylabel('Amplitude')
     ax_time.legend()
@@ -407,7 +396,7 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     ax_cum.plot(f_mhz, spectral['energy'], color='gold', linewidth=2)
     ax_cum.fill_between(f_mhz, spectral['energy'], color='gold', alpha=0.2)
     ax_cum.axvline(metrics['bw_90_hz'], color='red', linestyle='--', 
-                   label=f'90% Band: {metrics['bw_90_hz']:.1e} Hz')
+                   label=f"90% Band: {metrics['bw_90_hz']:.1e} Hz")
     ax_cum.set_title('Cumulative Energy')
     ax_cum.set_ylabel('Normalized Energy')
     ax_cum.set_xlabel('Frequency (MHz)')

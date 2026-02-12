@@ -39,17 +39,42 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.3.4"
-__all__ = ['quasar','hyperellipsoid','sensitivity','pareto', # available for star imports
-				'lorentzian','isotropize','deisotropize','waveform','sobol',
-				'test_functions','quasar_helpers','waveform_analysis'] # modules
+__version__ = "1.3.5"
 
 # import core components
 from .quasar_optimization import optimize as quasar
-from .hyperellipsoid_sampling import sample as hyperellipsoid
-from .hyperellipsoid_sampling import sobol_sample as sobol
-from .sens_analysis import sensitivity, lorentzian, pareto, isotropize, deisotropize
-from .waveform_analysis import analyze_waveform as waveform
-from . import test_functions
 from . import quasar_helpers
-from . import waveform_analysis
+
+### optional imports
+# hyperellipsoid and sobol sequences
+try:
+    from .hyperellipsoid_sampling import sample as hyperellipsoid
+    from .hyperellipsoid_sampling import sobol_sample as sobol
+except ImportError:
+    hyperellipsoid = sobol = None
+
+# sensitivity analysis, lorentzian KDE, pareto front, isotropization
+try:
+    from .sens_analysis import sensitivity, lorentzian, pareto, isotropize, deisotropize
+except ImportError:
+    sensitivity = lorentzian = pareto = isotropize = deisotropize = None
+
+# waveform analysis
+try:
+    from .waveform_analysis import analyze_waveform as waveform
+    from . import waveform_analysis
+except ImportError:
+    waveform = waveform_analysis = None
+
+# test functions
+try:
+    from . import test_functions
+except ImportError:
+    test_functions = None
+
+# define full list
+__all__ = [
+    'quasar', 'hyperellipsoid', 'sensitivity', 'pareto',
+    'lorentzian', 'isotropize', 'deisotropize', 'waveform', 'sobol',
+    'test_functions', 'quasar_helpers', 'waveform_analysis'
+]
