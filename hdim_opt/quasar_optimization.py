@@ -1,7 +1,7 @@
 # global imports
 import numpy as np
 from scipy import stats
-epsilon = 1e-12 # small epsilon to prevent zero-point errors
+epsilon = 1e-16 # small epsilon to prevent zero-point errors
 
 def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     '''
@@ -731,11 +731,14 @@ def optimize(func, bounds, args=(),
         print('\nStats:')
         
         # final population entropy
-        import warnings
-        warnings.filterwarnings('ignore',category=RuntimeWarning)
-        analysis_pop = population.T if vectorized else population
-        noise = np.random.normal(0, 1e-12, analysis_pop.shape)
-        pop_entropy = np.mean(stats.differential_entropy(analysis_pop+noise)) # add small noise to avoid div0
+        try:
+            import warnings
+            warnings.filterwarnings('ignore',category=RuntimeWarning)
+            analysis_pop = population.T if vectorized else population
+            noise = np.random.normal(0, 1e-12, analysis_pop.shape)
+            pop_entropy = np.mean(stats.differential_entropy(analysis_pop+noise)) # add small noise to avoid div0
+        except:
+            pop_entropy = np.inf
         print(f'- Entropy: {pop_entropy:.2f}')
 
         # mahalanobis distance
