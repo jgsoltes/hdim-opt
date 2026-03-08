@@ -75,7 +75,7 @@ def evolve_generation(obj_function, population, fitnesses, best_solution,
     Objective:
         - Evolves the population for the current generation.
             - Rank-based crossover rate:
-                - Worst solution CR = 1.0, best solution CR = 0.33.
+                - Worst solution CR = 0.33, best solution CR = 1.0.
             - Local & global mutation factor distributions.
                 - Can be displayed using 'plot_mutations()' function.
             - Greedy selection:
@@ -339,7 +339,8 @@ def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, gene
     elif reinit_method == 'sobol':
         
         # generate sobol samples
-        sobol_sampler = stats.qmc.Sobol(d=dimensions, seed=seed+generation) 
+        reinit_seed = None if seed == None else seed+generation
+        sobol_sampler = stats.qmc.Sobol(d=dimensions, seed=reinit_seed) 
         sobol_samples_unit = sobol_sampler.random(n=num_to_replace)
         
         bounds_low = bounds[:, 0]
@@ -371,8 +372,8 @@ def optimize(func, bounds, args=(),
               entangle_rate=0.33, polish=True, polish_minimizer=None,
               patience=np.inf, tolerance=-np.inf, vectorized=False,
               kwargs={},
-              constraints=None, constraint_penalty=1e9,
               reinitialization='covariance', hds_weights=None,
+              constraints=None, constraint_penalty=1e9,
               verbose=True, plot_solutions=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
@@ -416,6 +417,12 @@ def optimize(func, bounds, args=(),
         
         - kwargs: Dictionary of keyword arguments for the objective function.
 
+        - reinitialization: Type of sampling to use during a reinitialization event.
+            - 'covariance' for balance
+            - 'sobol' for exploration and speed
+        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
+            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
+            
         - constraints: Dictionary of constraints to penalize.
             - If possible, it is highly recommended to implement constraints as 
                 high penalties into user's objective function instead. The same logic is used here, but
@@ -428,14 +435,6 @@ def optimize(func, bounds, args=(),
                                     'heat_capacity': (test_constraint, '<=', 100) 
                                         }
         - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
-
-        - reinitialization: Type of re-sampling to use in the asymptotic reinitialization.
-            - Options are ['covariance', 'sobol'].
-            - 'covariance' (exploitative) is default for N > D problems.
-            - 'sobol' (explorative) is optional, for high exploration and faster computation.
-            - None to disable reinitialization calculations.
-        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
-            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
         
         - verbose: Displays prints and plots.
             - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()

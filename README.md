@@ -2,16 +2,15 @@
 
 Modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, signal waveform decomposition, and data transformations.
 
-All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples].
+All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples]:
+
 * **quasar**: QUASAR optimization for high-dimensional problems.
 * **hyperellipsoid**: Generate a non-uniform hyperellipsoid density sequence.
 * **sensitivity**: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
-* **pareto**: Easily create a multi-objective Pareto front trade-off analysis using QUASAR.
 
 * **lorentzian**: Fit a Lorentzian/Cauchy kernel density estimation to the data ensemble.
-* **isotropize/deisotropize**: Isotropize the input data using ZCA.
+* **isotropize/deisotropize**: Isotropize the input data using zero-phase component analysis (ZCA).
 * **waveform**: Decompose the input waveform signal array into a diagnostic summary.
-
 
 ---
 
@@ -37,12 +36,15 @@ obj_func = h.test_functions.rastrigin
 # Optimization
 solution, fitness = h.quasar(obj_func, bounds)
 sens_matrix = h.sensitivity(obj_func, bounds)
-pareto_front = h.pareto(obj_func, bounds, [])
 
 # Sampling
 hds_samples = h.hyperellipsoid(n_samples, bounds)
 iso_samples, params = h.isotropize(hds_samples)
 kde = h.lorentzian(solution, 3.0, iso_samples)
+
+# Waveform
+t, signal = h.waveform_analysis.e1_waveform(noise=0.1)
+summary = h.waveform(t,signal)
 ```
 
 ## QUASAR Optimizer

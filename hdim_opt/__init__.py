@@ -30,16 +30,19 @@ Example Usage:
 	# Optimization
 	>>> solution, fitness = h.quasar(obj_func, bounds)
 	>>> Si, S2 = h.sensitivity(obj_func, bounds)
-	>>> pareto_front = h.pareto(obj_func, bounds, [])
 
 	# Sampling
 	>>> hds_samples = h.hyperellipsoid(n_samples, bounds)
 	>>> iso_samples, params = h.isotropize(hds_samples)
 	>>> kde = h.lorentzian(solution, 3.0, hds_samples)
+
+	# Waveform
+	>>> t, signal = h.waveform_analysis.e1_waveform(noise=0.1)
+	>>> summary = h.waveform(t,signal)
 """
 
 # package version
-__version__ = "1.3.6"
+__version__ = "1.3.7"
 
 # import core components
 from .quasar_optimization import optimize as quasar

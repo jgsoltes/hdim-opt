@@ -329,7 +329,6 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
                 X, Y = np.meshgrid(x, y)
                 xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
                 if vectorized:
-                    # Z = obj_function(xy_coords)
                     Z = obj_function(xy_coords,*args,**kwargs).reshape(X.shape)
                 else:
                     fitness_list = [obj_function(coords,*args,**kwargs) for coords in xy_coords]

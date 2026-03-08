@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.3.6" # match version in __init__.py
+version = "1.3.7" # match version in __init__.py
 description = "High-dimensional numerical optimization and sampling toolkit for complex, non-differentiable problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
@@ -62,8 +62,10 @@ hds = [
 sensitivity = [
     # required by sensitivity `pip install hdim_opt[sensitivity]`
     "pandas",
-    "SALib"
+    "SALib",
 ]
+
+lorentzian = ["numba"]
 
 [project.urls]
 Homepage = "https://github.com/jgsoltes/hdim_opt"

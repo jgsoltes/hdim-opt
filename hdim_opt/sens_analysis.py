@@ -147,9 +147,10 @@ def sensitivity(func, bounds, n_samples=2**7,
             top_idx_to_show = sort_idx[-num_to_plot:]
             S2_filtered = S2_df.iloc[top_idx_to_show, top_idx_to_show]
             mask_filtered = np.tril(np.ones_like(S2_filtered, dtype=bool))
-            sns.heatmap(data=S2_filtered, mask=mask_filtered, annot=True, vmin=0.0, fmt='.2f')
+            sns.heatmap(data=S2_filtered, mask=mask_filtered, annot=True, fmt='.2f')
             ax.set_title('Second-order Interactions ($S_2$)')
             ax.invert_yaxis()
+            plt.yticks(rotation=0)
             plt.tight_layout()
             plt.show()
     
@@ -358,7 +359,7 @@ def pareto(func, bounds, targets=(),
     return pareto_df
 
 ### lorentzian KDE
-def lorentzian(x, sigma, ensemble, verbose=True):
+def lorentzian(x, sigma, ensemble, eff_dim=None, verbose=True):
     '''
     Objective:
         - Lorentzian KDE with internal plotting.
@@ -384,14 +385,19 @@ def lorentzian(x, sigma, ensemble, verbose=True):
     if x.shape[1] != n_dim and x.shape[0] == n_dim: # if data is 1D, reshape it to (N, 1)
         x = x.T
 
+    if eff_dim:
+        eff_dim = eff_dim
+    else:
+        eff_dim = n_dim
+
     # calculate distances
     dists_sq = cdist(x, ensemble, metric='sqeuclidean')
 
     # log-Lorentzian kernels
-    log_norm = (gammaln((n_dim + 1) / 2) - 
-                (gammaln(1/2) + (n_dim/2) * np.log(np.pi) + n_dim * np.log(sigma)))
+    log_norm = (gammaln((eff_dim + 1) / 2) - 
+                (gammaln(1/2) + (eff_dim/2) * np.log(np.pi) + eff_dim * np.log(sigma)))
     
-    log_kernels = log_norm - ((n_dim + 1) / 2) * np.log1p(dists_sq / (sigma**2))
+    log_kernels = log_norm - ((eff_dim + 1) / 2) * np.log1p(dists_sq / (sigma**2))
 
     # integrate and normalize
     log_intensity = (logsumexp(log_kernels, axis=1) - np.log(N)).squeeze()
@@ -411,7 +417,7 @@ def lorentzian(x, sigma, ensemble, verbose=True):
             import matplotlib.pyplot as plt
             from mpl_toolkits.mplot3d import Axes3D
         except:
-            return pareto_df
+            return log_intensity
         
         # set bounds
         mins = ensemble.min(axis=0)
