@@ -1,11 +1,6 @@
 import numpy as np
 from scipy import stats
 epsilon = 1e-12
-try:
-    from numba import njit, prange
-    @njit(parallel=True, fastmath=True)
-except:
-    pass
 
 ### sensitivity analysis
 def sensitivity(func, bounds, n_samples=2**7, 
@@ -364,206 +359,212 @@ def pareto(func, bounds, targets=(),
     return pareto_df
 
 ### lorentzian KDE
-def _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon):
-    '''Numba wrapped for fast kernel evaluation.'''
-    N_queries = x.shape[0]
-    N_ensemble = ensemble.shape[0]
-    results = np.zeros(N_queries)
-    log_N = np.log(float(N_ensemble))
-
-    for i in prange(N_queries):
-        # if Balloon: bandwidth is fixed for the query (outer loop)
-        # if Pointwise: extract inside the inner loop
-        if is_balloon:
-            s_inv_fixed = inv_sigma_sq[i]
-            l_norm_fixed = log_norm[i]
-        
-        temp_kernels = np.zeros(N_ensemble)
-        for j in range(N_ensemble):
-            # distance calculation
-            dist_sq = 0.0
-            for k in range(x.shape[1]):
-                diff = x[i, k] - ensemble[j, k]
-                dist_sq += diff * diff
-            
-            # select bandwidth logic
-            if is_balloon:
-                s_inv = s_inv_fixed
-                l_norm = l_norm_fixed
-            else:
-                s_inv = inv_sigma_sq[j]
-                l_norm = log_norm[j]
-            
-            ### kernel calculation
-            temp_kernels[j] = l_norm - eff_dim_plus_1_over_2 * np.log1p(dist_sq * s_inv)
-        
-        # LogSumExp for numerical stability
-        max_val = np.max(temp_kernels)
-        sum_exp = 0.0
-        for j in range(N_ensemble):
-            sum_exp += np.exp(temp_kernels[j] - max_val)
-        
-        results[i] = max_val + np.log(sum_exp) - log_N
-        
-    return results
-
-def lorentzian(x, sigma, ensemble, eff_dim=None, estimator='balloon', verbose=False):
-    '''
-    Objective:
-        - Lorentzian KDE with internal plotting.
-    Inputs:
-        - x: Coordinate(s) to sample from the underlying KDE.
-        - sigma: KDE bandwidth.
-        - ensemble: Kernel ensemble for KDE.
-        - eff_dim: Effective dimension for multivariate calculation.
-        - estimator: For variable-bandwidth KDEs ('balloon', 'pointwise').
-            - Balloon applies query bandwidth; pointwise applies kernel bandwidths.
-        - verbose: Boolean to display stats and plots.
-    Outputs:
-        - log_intensity: Logarithmic un-normalized intensity.
-    '''
-    ensemble = np.ascontiguousarray(np.atleast_2d(ensemble))
-    x = np.ascontiguousarray(np.atleast_2d(x))
-
-    # extract parameters
-    N_ensemble, n_dim = ensemble.shape
-    M_queries = x.shape[0]
-    eff_dim = eff_dim if eff_dim is not None else n_dim
-
-    # ensure sigma matches the shape of the estimator
-    sigma_vec = np.atleast_1d(sigma).flatten()
+try:
+    from numba import njit, prange
+    @njit(parallel=True, fastmath=True)
+    def _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon):
+        '''Numba wrapped for fast kernel evaluation.'''
+        N_queries = x.shape[0]
+        N_ensemble = ensemble.shape[0]
+        results = np.zeros(N_queries)
+        log_N = np.log(float(N_ensemble))
     
-    ### pre-calculate constants
-    log_pi = np.log(np.pi)
-    eff_dim_plus_1_over_2 = (eff_dim + 1) / 2
-    inv_sigma_sq = 1.0 / (sigma_vec**2)
-    log_norm = (gammaln(eff_dim_plus_1_over_2) - 
-               (gammaln(0.5) + (eff_dim/2) * log_pi + eff_dim * np.log(sigma_vec)))
+        for i in prange(N_queries):
+            # if Balloon: bandwidth is fixed for the query (outer loop)
+            # if Pointwise: extract inside the inner loop
+            if is_balloon:
+                s_inv_fixed = inv_sigma_sq[i]
+                l_norm_fixed = log_norm[i]
+            
+            temp_kernels = np.zeros(N_ensemble)
+            for j in range(N_ensemble):
+                # distance calculation
+                dist_sq = 0.0
+                for k in range(x.shape[1]):
+                    diff = x[i, k] - ensemble[j, k]
+                    dist_sq += diff * diff
+                
+                # select bandwidth logic
+                if is_balloon:
+                    s_inv = s_inv_fixed
+                    l_norm = l_norm_fixed
+                else:
+                    s_inv = inv_sigma_sq[j]
+                    l_norm = log_norm[j]
+                
+                ### kernel calculation
+                temp_kernels[j] = l_norm - eff_dim_plus_1_over_2 * np.log1p(dist_sq * s_inv)
+            
+            # LogSumExp for numerical stability
+            max_val = np.max(temp_kernels)
+            sum_exp = 0.0
+            for j in range(N_ensemble):
+                sum_exp += np.exp(temp_kernels[j] - max_val)
+            
+            results[i] = max_val + np.log(sum_exp) - log_N
+            
+        return results
 
-    if estimator == 'pointwise':
-        # sigma_vec must match ensemble
-        if sigma_vec.size != N_ensemble:
-            # if scalar, expand to match ensemble size
-            if sigma_vec.size == 1:
-                inv_sigma_sq = np.full(N_ensemble, inv_sigma_sq[0])
-                log_norm = np.full(N_ensemble, log_norm[0])
-            else:
-                raise ValueError(f"Pointwise requires sigma size ({sigma_vec.size}) to match ensemble size ({N_ensemble})")
-        log_intensity = _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon=False)
-        return log_intensity.squeeze()
-
-    elif estimator == 'balloon':
-        # balloon: sigma_vec must match M_queries
-        if sigma_vec.size != M_queries:
-            if sigma_vec.size == 1:
-                inv_sigma_sq = np.full(M_queries, inv_sigma_sq[0])
-                log_norm = np.full(M_queries, log_norm[0])
-            else:
-                raise ValueError(f"Balloon requires sigma size ({sigma_vec.size}) to match query size ({M_queries})")
-        log_intensity = _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon=True)
-    log_intensity = log_intensity.squeeze()
-
-    ### plotting
-    if verbose:
-        print('KDE Coordinate:')
-        display_vals = np.atleast_1d(log_intensity)        
-        if len(display_vals) > 3:
-            formatted_display = ', '.join([f'{val:.2e}' for val in display_vals[:3]])
-            print(f'- Log Density: [{formatted_display}, ...]')
-        else:
-            formatted_display = ', '.join([f'{val:.2e}' for val in display_vals])
-            print(f'- Log Density: [{formatted_display}]')
-
-        try:
-            import matplotlib.pyplot as plt
-            from mpl_toolkits.mplot3d import Axes3D
-        except:
-            return log_intensity
+    def lorentzian(x, sigma, ensemble, eff_dim=None, estimator='balloon', verbose=False):
+        '''
+        Objective:
+            - Lorentzian KDE with internal plotting.
+        Inputs:
+            - x: Coordinate(s) to sample from the underlying KDE.
+            - sigma: KDE bandwidth.
+            - ensemble: Kernel ensemble for KDE.
+            - eff_dim: Effective dimension for multivariate calculation.
+            - estimator: For variable-bandwidth KDEs ('balloon', 'pointwise').
+                - Balloon applies query bandwidth; pointwise applies kernel bandwidths.
+            - verbose: Boolean to display stats and plots.
+        Outputs:
+            - log_intensity: Logarithmic un-normalized intensity.
+        '''
+        from scipy.special import gammaln
+        ensemble = np.ascontiguousarray(np.atleast_2d(ensemble))
+        x = np.ascontiguousarray(np.atleast_2d(x))
+    
+        # extract parameters
+        N_ensemble, n_dim = ensemble.shape
+        M_queries = x.shape[0]
+        eff_dim = eff_dim if eff_dim is not None else n_dim
+    
+        # ensure sigma matches the shape of the estimator
+        sigma_vec = np.atleast_1d(sigma).flatten()
         
-        # set bounds
-        mins = ensemble.min(axis=0)
-        maxs = ensemble.max(axis=0)
-        bounds = np.column_stack([mins, maxs])
-
-        # 1D plot
-        if n_dim == 1:
-            x_range = np.linspace(mins[0], maxs[0], 500)
-            grid_points = x_range[:, np.newaxis]
-            
-            # generate samples
-            log_dens = lorentzian(grid_points, sigma, ensemble, verbose=False)
-            y_vals = np.exp(log_dens)
-            
-            plt.figure(figsize=(8, 5))
-            plt.plot(x_range, y_vals, lw=2, label='Lorentzian KDE')
-            plt.fill_between(x_range, y_vals, alpha=0.2)
-            plt.title('1D Density')
-            plt.xlabel('')
-            plt.ylabel('Density')
-            plt.legend()
-            plt.show()
-        
-        # 2d contour plot
-        else:
-            # PCA projection for D >= 2
-            if n_dim > 2:
-                from sklearn.decomposition import PCA
-                pca = PCA(n_components=2)
-                ensemble_2d = pca.fit_transform(ensemble)
-                comp = pca.components_
-                mean = pca.mean_
+        ### pre-calculate constants
+        log_pi = np.log(np.pi)
+        eff_dim_plus_1_over_2 = (eff_dim + 1) / 2
+        inv_sigma_sq = 1.0 / (sigma_vec**2)
+        log_norm = (gammaln(eff_dim_plus_1_over_2) - 
+                   (gammaln(0.5) + (eff_dim/2) * log_pi + eff_dim * np.log(sigma_vec)))
+    
+        if estimator == 'pointwise':
+            # sigma_vec must match ensemble
+            if sigma_vec.size != N_ensemble:
+                # if scalar, expand to match ensemble size
+                if sigma_vec.size == 1:
+                    inv_sigma_sq = np.full(N_ensemble, inv_sigma_sq[0])
+                    log_norm = np.full(N_ensemble, log_norm[0])
+                else:
+                    raise ValueError(f"Pointwise requires sigma size ({sigma_vec.size}) to match ensemble size ({N_ensemble})")
+            log_intensity = _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon=False)
+            return log_intensity.squeeze()
+    
+        elif estimator == 'balloon':
+            # balloon: sigma_vec must match M_queries
+            if sigma_vec.size != M_queries:
+                if sigma_vec.size == 1:
+                    inv_sigma_sq = np.full(M_queries, inv_sigma_sq[0])
+                    log_norm = np.full(M_queries, log_norm[0])
+                else:
+                    raise ValueError(f"Balloon requires sigma size ({sigma_vec.size}) to match query size ({M_queries})")
+            log_intensity = _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon=True)
+        log_intensity = log_intensity.squeeze()
+    
+        ### plotting
+        if verbose:
+            print('KDE Coordinate:')
+            display_vals = np.atleast_1d(log_intensity)        
+            if len(display_vals) > 3:
+                formatted_display = ', '.join([f'{val:.2e}' for val in display_vals[:3]])
+                print(f'- Log Density: [{formatted_display}, ...]')
             else:
-                ensemble_2d = ensemble
-
-            # set bounds based on 2D projection
-            mins = ensemble_2d.min(axis=0)
-            maxs = ensemble_2d.max(axis=0)
-            pad = (maxs - mins) * 0.2
+                formatted_display = ', '.join([f'{val:.2e}' for val in display_vals])
+                print(f'- Log Density: [{formatted_display}]')
+    
+            try:
+                import matplotlib.pyplot as plt
+                from mpl_toolkits.mplot3d import Axes3D
+            except:
+                return log_intensity
             
-            x_range = np.linspace(mins[0]-pad[0], maxs[0]+pad[0], 100)
-            y_range = np.linspace(mins[1]-pad[1], maxs[1]+pad[1], 100)
-            X_grid, Y_grid = np.meshgrid(x_range, y_range)
-            grid_2d = np.vstack([X_grid.ravel(), Y_grid.ravel()]).T
-
-            if n_dim > 2:
-                # map 2d grid back to high-d for grid calculation
-                grid_high_d = grid_2d @ comp + mean
-                x_2d = pca.transform(x)
+            # set bounds
+            mins = ensemble.min(axis=0)
+            maxs = ensemble.max(axis=0)
+            bounds = np.column_stack([mins, maxs])
+    
+            # 1D plot
+            if n_dim == 1:
+                x_range = np.linspace(mins[0], maxs[0], 500)
+                grid_points = x_range[:, np.newaxis]
+                
+                # generate samples
+                log_dens = lorentzian(grid_points, sigma, ensemble, verbose=False)
+                y_vals = np.exp(log_dens)
+                
+                plt.figure(figsize=(8, 5))
+                plt.plot(x_range, y_vals, lw=2, label='Lorentzian KDE')
+                plt.fill_between(x_range, y_vals, alpha=0.2)
+                plt.title('1D Density')
+                plt.xlabel('')
+                plt.ylabel('Density')
+                plt.legend()
+                plt.show()
+            
+            # 2d contour plot
             else:
-                grid_high_d = grid_2d
-                x_2d = x
-
-            log_dens = lorentzian(grid_high_d, sigma, ensemble, verbose=False)
-            Z = np.exp(log_dens).reshape(X_grid.shape)
-
-            ### plots
-            fig = plt.figure(figsize=(16, 5))
+                # PCA projection for D >= 2
+                if n_dim > 2:
+                    from sklearn.decomposition import PCA
+                    pca = PCA(n_components=2)
+                    ensemble_2d = pca.fit_transform(ensemble)
+                    comp = pca.components_
+                    mean = pca.mean_
+                else:
+                    ensemble_2d = ensemble
+    
+                # set bounds based on 2D projection
+                mins = ensemble_2d.min(axis=0)
+                maxs = ensemble_2d.max(axis=0)
+                pad = (maxs - mins) * 0.2
+                
+                x_range = np.linspace(mins[0]-pad[0], maxs[0]+pad[0], 100)
+                y_range = np.linspace(mins[1]-pad[1], maxs[1]+pad[1], 100)
+                X_grid, Y_grid = np.meshgrid(x_range, y_range)
+                grid_2d = np.vstack([X_grid.ravel(), Y_grid.ravel()]).T
+    
+                if n_dim > 2:
+                    # map 2d grid back to high-d for grid calculation
+                    grid_high_d = grid_2d @ comp + mean
+                    x_2d = pca.transform(x)
+                else:
+                    grid_high_d = grid_2d
+                    x_2d = x
+    
+                log_dens = lorentzian(grid_high_d, sigma, ensemble, verbose=False)
+                Z = np.exp(log_dens).reshape(X_grid.shape)
+    
+                ### plots
+                fig = plt.figure(figsize=(16, 5))
+                
+                # 1d density plot (PCA 1)
+                ax1 = fig.add_subplot(131)
+                y_idx = np.argmin(np.abs(y_range - x_2d[0, 1]))
+    
+                # slice at y-coordinate of 'x' value
+                ax1.plot(x_range, Z[y_idx, :], lw=2)
+                ax1.fill_between(x_range, Z[y_idx, :], alpha=0.1, color='cornflowerblue')
+                
+                ax1.set_title('1D Density')
+                ax1.set_xlabel('')
+                ax1.set_ylabel('')
+                ax1.set_yticks([])
+                
+                # 2D contour plot
+                ax2 = fig.add_subplot(132)
+                contour = ax2.contourf(X_grid, Y_grid, Z, levels=67, cmap='bone')
+                ax2.scatter(ensemble_2d[:, 0], ensemble_2d[:, 1], s=2.0, alpha=0.33, color='white')
+                ax2.set_title('2D Density Contour')
+                
+                # 3D topography plot
+                ax3 = fig.add_subplot(133, projection='3d')
+                ax3.plot_surface(X_grid, Y_grid, Z, cmap='bone', edgecolor='none', alpha=0.95)
+                ax3.set_title('3D Topography')
+                ax3.view_init(elev=35, azim=-60)
+                ax3.set_zticks([])
+                plt.show()
             
-            # 1d density plot (PCA 1)
-            ax1 = fig.add_subplot(131)
-            y_idx = np.argmin(np.abs(y_range - x_2d[0, 1]))
-
-            # slice at y-coordinate of 'x' value
-            ax1.plot(x_range, Z[y_idx, :], lw=2)
-            ax1.fill_between(x_range, Z[y_idx, :], alpha=0.1, color='cornflowerblue')
-            
-            ax1.set_title('1D Density')
-            ax1.set_xlabel('')
-            ax1.set_ylabel('')
-            ax1.set_yticks([])
-            
-            # 2D contour plot
-            ax2 = fig.add_subplot(132)
-            contour = ax2.contourf(X_grid, Y_grid, Z, levels=67, cmap='bone')
-            ax2.scatter(ensemble_2d[:, 0], ensemble_2d[:, 1], s=2.0, alpha=0.33, color='white')
-            ax2.set_title('2D Density Contour')
-            
-            # 3D topography plot
-            ax3 = fig.add_subplot(133, projection='3d')
-            ax3.plot_surface(X_grid, Y_grid, Z, cmap='bone', edgecolor='none', alpha=0.95)
-            ax3.set_title('3D Topography')
-            ax3.view_init(elev=35, azim=-60)
-            ax3.set_zticks([])
-            plt.show()
-        
-    return log_intensity
+        return log_intensity
+except:
+    pass
