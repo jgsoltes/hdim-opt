@@ -42,7 +42,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.3.7"
+__version__ = "1.3.8"
 
 # import core components
 from .quasar_optimization import optimize as quasar

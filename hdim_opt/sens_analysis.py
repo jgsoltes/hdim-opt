@@ -1,6 +1,11 @@
 import numpy as np
 from scipy import stats
 epsilon = 1e-12
+try:
+    from numba import njit, prange
+    @njit(parallel=True, fastmath=True)
+except:
+    pass
 
 ### sensitivity analysis
 def sensitivity(func, bounds, n_samples=2**7, 
@@ -359,48 +364,104 @@ def pareto(func, bounds, targets=(),
     return pareto_df
 
 ### lorentzian KDE
-def lorentzian(x, sigma, ensemble, eff_dim=None, verbose=True):
+def _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon):
+    '''Numba wrapped for fast kernel evaluation.'''
+    N_queries = x.shape[0]
+    N_ensemble = ensemble.shape[0]
+    results = np.zeros(N_queries)
+    log_N = np.log(float(N_ensemble))
+
+    for i in prange(N_queries):
+        # if Balloon: bandwidth is fixed for the query (outer loop)
+        # if Pointwise: extract inside the inner loop
+        if is_balloon:
+            s_inv_fixed = inv_sigma_sq[i]
+            l_norm_fixed = log_norm[i]
+        
+        temp_kernels = np.zeros(N_ensemble)
+        for j in range(N_ensemble):
+            # distance calculation
+            dist_sq = 0.0
+            for k in range(x.shape[1]):
+                diff = x[i, k] - ensemble[j, k]
+                dist_sq += diff * diff
+            
+            # select bandwidth logic
+            if is_balloon:
+                s_inv = s_inv_fixed
+                l_norm = l_norm_fixed
+            else:
+                s_inv = inv_sigma_sq[j]
+                l_norm = log_norm[j]
+            
+            ### kernel calculation
+            temp_kernels[j] = l_norm - eff_dim_plus_1_over_2 * np.log1p(dist_sq * s_inv)
+        
+        # LogSumExp for numerical stability
+        max_val = np.max(temp_kernels)
+        sum_exp = 0.0
+        for j in range(N_ensemble):
+            sum_exp += np.exp(temp_kernels[j] - max_val)
+        
+        results[i] = max_val + np.log(sum_exp) - log_N
+        
+    return results
+
+def lorentzian(x, sigma, ensemble, eff_dim=None, estimator='balloon', verbose=False):
     '''
     Objective:
         - Lorentzian KDE with internal plotting.
     Inputs:
-        - x: Coordinate to sample from the underlying KDE.
+        - x: Coordinate(s) to sample from the underlying KDE.
         - sigma: KDE bandwidth.
-        - ensemble: Data ensemble to generate the KDE.
+        - ensemble: Kernel ensemble for KDE.
+        - eff_dim: Effective dimension for multivariate calculation.
+        - estimator: For variable-bandwidth KDEs ('balloon', 'pointwise').
+            - Balloon applies query bandwidth; pointwise applies kernel bandwidths.
         - verbose: Boolean to display stats and plots.
     Outputs:
         - log_intensity: Logarithmic un-normalized intensity.
     '''
-    # imports
-    from scipy.spatial.distance import cdist
-    from scipy.special import logsumexp, gammaln
+    ensemble = np.ascontiguousarray(np.atleast_2d(ensemble))
+    x = np.ascontiguousarray(np.atleast_2d(x))
+
+    # extract parameters
+    N_ensemble, n_dim = ensemble.shape
+    M_queries = x.shape[0]
+    eff_dim = eff_dim if eff_dim is not None else n_dim
+
+    # ensure sigma matches the shape of the estimator
+    sigma_vec = np.atleast_1d(sigma).flatten()
     
-    # clean input shapes
-    ensemble = np.array(ensemble)
-    if ensemble.ndim == 1:
-        ensemble = ensemble.reshape(-1, 1) # if data is 1D, reshape it to (N, 1)
-    N = ensemble.shape[0]
-    n_dim = ensemble.shape[1]
-    x = np.atleast_2d(x)
-    if x.shape[1] != n_dim and x.shape[0] == n_dim: # if data is 1D, reshape it to (N, 1)
-        x = x.T
+    ### pre-calculate constants
+    log_pi = np.log(np.pi)
+    eff_dim_plus_1_over_2 = (eff_dim + 1) / 2
+    inv_sigma_sq = 1.0 / (sigma_vec**2)
+    log_norm = (gammaln(eff_dim_plus_1_over_2) - 
+               (gammaln(0.5) + (eff_dim/2) * log_pi + eff_dim * np.log(sigma_vec)))
 
-    if eff_dim:
-        eff_dim = eff_dim
-    else:
-        eff_dim = n_dim
+    if estimator == 'pointwise':
+        # sigma_vec must match ensemble
+        if sigma_vec.size != N_ensemble:
+            # if scalar, expand to match ensemble size
+            if sigma_vec.size == 1:
+                inv_sigma_sq = np.full(N_ensemble, inv_sigma_sq[0])
+                log_norm = np.full(N_ensemble, log_norm[0])
+            else:
+                raise ValueError(f"Pointwise requires sigma size ({sigma_vec.size}) to match ensemble size ({N_ensemble})")
+        log_intensity = _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon=False)
+        return log_intensity.squeeze()
 
-    # calculate distances
-    dists_sq = cdist(x, ensemble, metric='sqeuclidean')
-
-    # log-Lorentzian kernels
-    log_norm = (gammaln((eff_dim + 1) / 2) - 
-                (gammaln(1/2) + (eff_dim/2) * np.log(np.pi) + eff_dim * np.log(sigma)))
-    
-    log_kernels = log_norm - ((eff_dim + 1) / 2) * np.log1p(dists_sq / (sigma**2))
-
-    # integrate and normalize
-    log_intensity = (logsumexp(log_kernels, axis=1) - np.log(N)).squeeze()
+    elif estimator == 'balloon':
+        # balloon: sigma_vec must match M_queries
+        if sigma_vec.size != M_queries:
+            if sigma_vec.size == 1:
+                inv_sigma_sq = np.full(M_queries, inv_sigma_sq[0])
+                log_norm = np.full(M_queries, log_norm[0])
+            else:
+                raise ValueError(f"Balloon requires sigma size ({sigma_vec.size}) to match query size ({M_queries})")
+        log_intensity = _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon=True)
+    log_intensity = log_intensity.squeeze()
 
     ### plotting
     if verbose:
@@ -500,7 +561,7 @@ def lorentzian(x, sigma, ensemble, eff_dim=None, verbose=True):
             # 3D topography plot
             ax3 = fig.add_subplot(133, projection='3d')
             ax3.plot_surface(X_grid, Y_grid, Z, cmap='bone', edgecolor='none', alpha=0.95)
-            ax3.set_title('3D Topology')
+            ax3.set_title('3D Topography')
             ax3.view_init(elev=35, azim=-60)
             ax3.set_zticks([])
             plt.show()
