@@ -614,7 +614,8 @@ try:
             try:
                 data_reduced = pca_2d.fit_transform(data_scaled)
             except ValueError:
-                data = np.arcsinh(data)
+                data = np.arcsinh(data_raw)
+                transform = True
                 data_scaled = scaler.fit_transform(data)
                 data_reduced = pca_2d.fit_transform(data_scaled)
                 print('Arcsinh transform applied (unstable Z-scaling).')
@@ -622,6 +623,7 @@ try:
             # force scaling if PCA is null
             if np.isnan(data_reduced).any() or np.isinf(data_reduced).any():
                 data = np.arcsinh(data_raw)
+                transform = True
                 data_scaled = scaler.fit_transform(data)
                 data_reduced = pca_2d.fit_transform(data_scaled)
                 print('Arcsinh transform applied (unstable covariance).')
@@ -712,7 +714,6 @@ try:
                 pca_variance = loadings[-1:].copy()
                 pca_variance.rename(columns={'Magnitude':'Total'},inplace=True)
                 print(pca_variance.round(3).to_markdown())
-                # print(loadings[-1:].round(3).to_markdown())
                 print()
             
             # 2d metrics
@@ -776,7 +777,7 @@ try:
         # relative ratios
         if n_dim > 2:
             top_params = loadings.iloc[:-1].head(15).index.tolist()
-            df_top = df[top_params]
+            df_top = df_transformed[top_params]
             n_top = len(top_params)
             means = df_top.mean().values # top means
             ratio_matrix = means[:, None] / means[None, :] # ratios
@@ -813,7 +814,8 @@ try:
                 annot_matrix.append(row_annot)
                 
             sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
-            ax[1].set_title('Ratios')
+            ratio_title = 'Ratio (Arcsinh)' if transform else 'Ratio'
+            ax[1].set_title(ratio_title)
             
             plt.tight_layout()
             plt.show()
