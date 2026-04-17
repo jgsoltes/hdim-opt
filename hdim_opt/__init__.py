@@ -1,5 +1,4 @@
 """
-
 # hdim-opt: High-Dimensional Optimization Toolkit
 
 Functions:
@@ -23,26 +22,27 @@ Example Usage:
 
 	# Parameter Space
 	>>> n_dimensions = 30
-	>>> bounds = [(-100,100)] * n_dimensions
 	>>> n_samples = 1000
-	>>> obj_func = h.test_functions.rastrigin
-
-	# Optimization
-	>>> solution, fitness = h.quasar(obj_func, bounds)
-	>>> Si, S2 = h.sensitivity(obj_func, bounds)
+	>>> bounds = [(-100,100)] * n_dimensions
+	>>> obj_func = h.test_functions.rastrigin # Test function
 
 	# Sampling
-	>>> hds_samples = h.hyperellipsoid(n_samples, bounds)
-	>>> iso_samples, params = h.isotropize(hds_samples)
-	>>> kde = h.lorentzian(solution, 3.0, hds_samples)
+	>>> ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
+	>>> iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
+	>>> h.analyze(ellipsoid_samples) # Analyze any dataset
 
-	# Waveform
-	>>> t, signal = h.waveform_analysis.e1_waveform(noise=0.1)
-	>>> summary = h.waveform(t,signal)
+	# Optimization
+	>>> solution, fitness = h.quasar(obj_func, bounds, init=iso_samples) # QUASAR evolutionary optimization
+	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sobol sensitivity analysis
+	>>> kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples) # Lorentzian KDE
+
+	# Waveforms
+	>>> t, signal = h.waveform_analysis.e1_waveform(noise=0.1) # Waveform generation
+	>>> summary = h.waveform(t,signal) # Waveform analysis
 """
 
 # package version
-__version__ = "1.3.8"
+__version__ = "1.4.0"
 
 # import core components
 from .quasar_optimization import optimize as quasar
@@ -56,11 +56,11 @@ try:
 except ImportError:
     hyperellipsoid = sobol = None
 
-# sensitivity analysis, lorentzian KDE, pareto front, isotropization
+# sensitivity analysis, lorentzian KDE, data analysis, isotropization
 try:
-    from .sens_analysis import sensitivity, lorentzian, pareto, isotropize, deisotropize
+    from .sens_analysis import sensitivity, lorentzian, analyze, isotropize, deisotropize, pareto
 except ImportError:
-    sensitivity = lorentzian = pareto = isotropize = deisotropize = None
+    sensitivity = lorentzian = analyze = isotropize = deisotropize = pareto = None
 
 # waveform analysis
 try:
@@ -77,7 +77,7 @@ except ImportError:
 
 # define full list
 __all__ = [
-    'quasar', 'hyperellipsoid', 'sensitivity', 'pareto',
+    'quasar', 'hyperellipsoid', 'sensitivity', 'analyze'
     'lorentzian', 'isotropize', 'deisotropize', 'waveform', 'sobol',
-    'test_functions', 'quasar_helpers', 'waveform_analysis'
+    'test_functions', 'quasar_helpers', 'waveform_analysis', 'pareto'
 ]

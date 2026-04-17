@@ -29,22 +29,23 @@ import hdim_opt as h
 
 # Parameter Space
 n_dimensions = 30
-bounds = [(-100,100)] * n_dimensions
 n_samples = 1000
-obj_func = h.test_functions.rastrigin
-
-# Optimization
-solution, fitness = h.quasar(obj_func, bounds)
-sens_matrix = h.sensitivity(obj_func, bounds)
+bounds = [(-100,100)] * n_dimensions
+obj_func = h.test_functions.rastrigin # Test function
 
 # Sampling
-hds_samples = h.hyperellipsoid(n_samples, bounds)
-iso_samples, params = h.isotropize(hds_samples)
-kde = h.lorentzian(solution, 3.0, iso_samples)
+ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
+iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
+h.analyze(ellipsoid_samples) # Analyze any dataset
 
-# Waveform
-t, signal = h.waveform_analysis.e1_waveform(noise=0.1)
-summary = h.waveform(t,signal)
+# Optimization
+solution, fitness = h.quasar(obj_func, bounds, init=iso_samples) # QUASAR evolutionary optimization
+Si, S2 = h.sensitivity(obj_func, bounds) # Sobol sensitivity analysis
+kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples, verbose=True) # Lorentzian KDE
+
+# Waveforms
+t, signal = h.waveform_analysis.e1_waveform(noise=0.1) # Waveform generation
+summary = h.waveform(t,signal) # Waveform analysis
 ```
 
 ## QUASAR Optimizer

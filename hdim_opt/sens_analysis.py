@@ -568,3 +568,247 @@ try:
         return log_intensity
 except:
     pass
+
+
+def analyze(data, transform=False):
+    '''Quick analysis of data matrix.'''
+
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.linear_model import LinearRegression
+    from sklearn.metrics import r2_score
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
+
+    ### convert to dataframe
+    df = pd.DataFrame(data).select_dtypes(include=[np.number])
+    param_names = df.columns
+    data_raw = df.values
+
+    # arcsinh transform for orders of magnitude
+    if transform:
+        data = np.arcsinh(data_raw)
+        print('Arcsinh transform applied.\n')
+    else:
+        data = data_raw
+
+     # scaled data for PCA
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+
+    # n_dimensions
+    n_dim = data.shape[1]
+    if n_dim == 0:
+        print('No numeric columns found.')
+        return None
+
+    ### PCA
+    if n_dim > 2:
+        pca_2d = PCA(n_components=2)
+        try:
+            data_reduced = pca_2d.fit_transform(data_scaled)
+        except ValueError:
+            data = np.arcsinh(data)
+            data_scaled = scaler.fit_transform(data)
+            data_reduced = pca_2d.fit_transform(data_scaled)
+            print('Arcsinh transform applied (unstable Z-scaling).')
+        
+        # force scaling if PCA is null
+        if np.isnan(data_reduced).any() or np.isinf(data_reduced).any():
+            data = np.arcsinh(data_raw)
+            data_scaled = scaler.fit_transform(data)
+            data_reduced = pca_2d.fit_transform(data_scaled)
+            print('Arcsinh transform applied (unstable covariance).')
+        x, y = data_reduced[:,0], data_reduced[:,1]
+
+        ### loadings
+        loadings = pd.DataFrame(pca_2d.components_.T, columns=['PC1', 'PC2'], index=param_names)
+        loadings['Magnitude'] = np.sqrt(loadings['PC1']**2 + loadings['PC2']**2)
+        loadings = loadings.sort_values(by='Magnitude', ascending=False).head(15)
+        
+        # variance
+        var_pc1 = pca_2d.explained_variance_ratio_[0]
+        var_pc2 = pca_2d.explained_variance_ratio_[1]
+        total_var = var_pc1 + var_pc2
+
+        variance_row = pd.DataFrame(
+            [[var_pc1, var_pc2, total_var]], 
+            columns=['PC1', 'PC2', 'Magnitude'], 
+            index=['Explained Var.']
+            )
+        loadings = pd.concat([loadings, variance_row])
+
+    # 2d plots
+    elif n_dim == 2:
+        x, y = data[:,0], data[:,1]
+
+    # 1d plot
+    else:
+        print('- Stats:')
+        print(f'Mean: {np.mean(data):.3g}')
+        print(f'Median: {np.median(data):.3g}')
+        print(f'Stdev: {np.std(data):.3g}')
+        
+        sns.kdeplot(x=data.flatten(),alpha=0.75)
+        plt.title('Probability Density')
+        plt.xlabel('Value')
+        plt.show()
+        return None
+
+    # remove nulls from data
+    valid_indices = ~np.isnan(x) & ~np.isnan(y)
+    x, y = x[valid_indices], y[valid_indices]
+    
+    ### pairwise comparison
+    try:
+        ### normalized standard deviation (occupancy)
+        N = len(data)
+        span = data.max() - data.min()
+        dim_sds = np.std(data, axis=0, ddof=1)
+        norm_sds = dim_sds / span
+        
+        # standard error of the standard deviation (for a normal-ish distribution) is approx sigma / sqrt(2N)
+        dim_se = dim_sds / np.sqrt(2 * N) 
+        norm_se = dim_se / span
+        total_occupancy = np.sqrt(np.mean(norm_sds**2))
+        total_occupancy_se = np.mean(norm_se) # average uncertainty across the 11-D space
+
+        ### normalized differential entropy
+        efficiencies = []
+        
+        # iterate through dimensions
+        col_spans = []
+        for i in range(data.shape[1]):
+            column_data = data[:, i]
+            
+            # actual differential entropy (in nats)
+            h_actual = stats.differential_entropy(column_data)
+            col_span = np.max(column_data) - np.min(column_data) # max possible entropy assumes uniform distribution over the span
+            if col_span > 0:
+                efficiencies.append(np.exp(h_actual) / col_span)
+                col_spans.append(col_span)
+            else:
+                efficiencies.append(0.0)
+        col_spans = np.array(col_spans)
+        efficiencies = np.array(efficiencies)
+        norm_entropy = np.mean(efficiencies)
+        entropy_se = np.std(efficiencies, ddof=1) / np.sqrt(len(efficiencies)) # standard error across dimensions
+        norm_span = np.linalg.norm(col_spans)
+        print('Stats:')
+        print(f'- Norm. Stdev: {total_occupancy:.1%} ± {total_occupancy_se:.1%}')
+        print(f'- Entropy: {norm_entropy:.1%} ± {entropy_se:.1%}')
+        print(f'- Span: {norm_span:.3g}\n')
+        
+        ### print metrics
+        if n_dim > 2:
+            print('Principal Axes:')
+        
+        # 2d metrics
+        else:
+            print('Axes:')
+            ### calculate metrics
+            # pearson correlation
+            corr = stats.pearsonr(x, y)
+    
+            # wilcoxon signed-rank test
+            t_stat, p_value = stats.wilcoxon(y,x)
+            x_mean = np.mean(x)
+            ratio = np.mean(y) / x_mean if x_mean != 0 else np.nan # crashes if denom is 0
+    
+            # linear regression
+            lin_model = LinearRegression()
+            lin_model.fit(x.reshape(-1,1),y.reshape(-1,1))
+            r2 = lin_model.score(x.reshape(-1,1),y.reshape(-1,1))
+            print(f'- Correlation: {corr[0]:.3f} (p={corr[1]:.3e})')
+            print(f'- Regression: y = {lin_model.coef_[0][0]:.3g}x + {lin_model.intercept_[0]:.3g}  (r2={r2:.3f})')
+            print(f'- Ratio: {ratio:.2g} (p={p_value:.3g})\n')
+        print(loadings.rename_axis('Dimension')[:-1].round(3).to_markdown())
+        pca_variance = loadings[-1:].copy()
+        pca_variance.rename(columns={'Magnitude':'Total'},inplace=True)
+        print(pca_variance.round(3).to_markdown())
+        # print(loadings[-1:].round(3).to_markdown())
+        print()
+        
+    except Exception as e:
+        print(f'Bypassing metrics ({e})')
+
+    ### plot
+    fig, ax = plt.subplots(1,2,figsize=(11,5.5))
+
+    # scatter
+    ax[0].scatter(x=x,y=y,s=1)
+    ax[0].set_xlabel('Axis 1')
+    ax[0].set_ylabel('Axis 2')
+    ax[0].set_title('Principal Components')
+
+    # 2-d
+    sns.kdeplot(x=x,alpha=0.75,label='Axis 1', ax=ax[1], common_norm=False)
+    sns.kdeplot(x=y,alpha=0.75,label='Axis 2', ax=ax[1], common_norm=False)
+    ax[1].set_title('Principal Components')
+    ax[1].set_xlabel('')
+    ax[1].set_ylabel('')
+    ax[1].legend()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    
+    ### comparisons
+    # correlation matrix
+    df_transformed = pd.DataFrame(data, columns=param_names)
+    corr_df = df_transformed.corr()
+    
+    # filter to top 10 correlations dimension
+    if df.shape[1] > 10:
+        overall_corr = corr_df.abs().mean().sort_values(ascending=False)
+        top_vars = overall_corr.head(10).index
+        corr_plot_data = corr_df.loc[top_vars, top_vars]
+    else:
+        corr_plot_data = corr_df
+    corr_plot_data = corr_plot_data.rename(index=lambda x: str(x)[:15], columns=lambda x: str(x)[:10])
+    
+    # relative ratios
+    top_params = loadings.iloc[:-1].head(15).index.tolist()
+    df_top = df[top_params]
+    n_top = len(top_params)
+    means = df_top.mean().values # top means
+    ratio_matrix = means[:, None] / means[None, :] # ratios
+    
+    # wilcoxon p-values
+    p_matrix = np.zeros((n_top, n_top))
+    for i in range(n_top):
+        for j in range(n_top):
+            if i == j:
+                p_matrix[i, j] = 1.0
+            else:
+                _, p = stats.ttest_rel(df_top.iloc[:, i], df_top.iloc[:, j])
+                p_matrix[i, j] = p
+
+    # create ratio dataframe
+    ratio_df = pd.DataFrame(ratio_matrix, index=top_params, columns=top_params)
+    
+    ### plot comparisons
+    fig, ax = plt.subplots(1,2,figsize=(11.5,5))
+    
+    # correlations
+    sns.heatmap(corr_plot_data, ax=ax[0], center=0)
+    ax[0].set_title('Correlations')
+
+    # ratios
+    annot_matrix = []
+    for i in range(len(top_params)):
+        row_annot = []
+        for j in range(len(top_params)):
+            r = ratio_matrix[i, j]
+            p = p_matrix[i, j]
+            star = '*' if p < 0.05 else ''
+            row_annot.append(f'{star}')
+        annot_matrix.append(row_annot)
+        
+    # sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1])
+    sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
+    ax[1].set_title('Ratios')
+    
+    plt.tight_layout()
+    plt.show()
