@@ -3,158 +3,161 @@ from scipy import stats
 epsilon = 1e-12
 
 ### sensitivity analysis
-def sensitivity(func, bounds, n_samples=2**7, 
-                  args=None, kwargs=None, 
-                  param_names=None, calc_second_order=True, 
-                  log_scale=False, num_to_plot=10, verbose=True):
-    '''
-    Objective:
-        - Perform global Sobol sensitivity analysis on the objective function.
-        - Utilizes the SALib package.
-    Inputs:
-        - func: Objective function (Problem) to analyze.
-        - bounds: Parameter space bounds, as an array of tuples.
-        - n_samples: Number of Sobol samples to generate.
-        - kwargs: Keyword arguments (dictionary) for objective function.
-        - param_names: Optional parameter names for each dimension.
-        - calc_second_order: Boolean to calculate second-order interactions. Disable to improve computation speed.
-        - log_scale: Boolean to log-scale plots.
-        - num_to_plot: Number of dimensions to plot.
-        - verbose: Boolean to display plots.
-    Outputs:
-        - Si: Matrix of first- and total-order sensitivity indices and confidences.
-        - S2_matrix: Matrix of second-order interactions.
-    '''
-
-    ### imports
-    try:
-        import numpy as np
-        from SALib.sample import sobol as sobol_sample
-        from SALib.analyze import sobol as sobol_analyze
-        import pandas as pd
-        import time
-    except ImportError as e:
-        raise ImportError(f'Sensitivity analysis requires dependencies: (SALib, pandas).') from e
+try:
+    def sensitivity(func, bounds, n_samples=2**7, 
+                      args=None, kwargs=None, 
+                      param_names=None, calc_second_order=True, 
+                      log_scale=False, num_to_plot=10, verbose=True):
+        '''
+        Objective:
+            - Perform global Sobol sensitivity analysis on the objective function.
+            - Utilizes the SALib package.
+        Inputs:
+            - func: Objective function (Problem) to analyze.
+            - bounds: Parameter space bounds, as an array of tuples.
+            - n_samples: Number of Sobol samples to generate.
+            - kwargs: Keyword arguments (dictionary) for objective function.
+            - param_names: Optional parameter names for each dimension.
+            - calc_second_order: Boolean to calculate second-order interactions. Disable to improve computation speed.
+            - log_scale: Boolean to log-scale plots.
+            - num_to_plot: Number of dimensions to plot.
+            - verbose: Boolean to display plots.
+        Outputs:
+            - Si: Matrix of first- and total-order sensitivity indices and confidences.
+            - S2_matrix: Matrix of second-order interactions.
+        '''
     
-    ### extract inputs
-    start_time = time.time()
-    bounds = np.array(bounds)
-    n_params = bounds.shape[0]
-    if param_names == None:
-        param_names = range(0,n_params)
-    elif len(param_names) != len(bounds):
-        raise ValueError('Length of param_names does not match length of bounds.')
-    
-    ### define problem for SALib
-    problem = {
-        'num_vars': n_params,
-        'names': param_names,
-        'bounds' : bounds
-        }
-
-    ### generate samples
-    if verbose:
-        print(f'Generating Sobol samples (N={n_samples:,.0f}, D={n_params}).')
-    param_values = sobol_sample.sample(problem, n_samples, calc_second_order=calc_second_order)
-
-    ### args / kwargs for the objective function
-    if args is None:
-        args = []
-    if kwargs is None:
-        kwargs = {}
-    def wrapped_func(x_samples):
-        return func(x_samples, *args, **kwargs)
-
-    ### evaluate samples
-    # vectorized evaluation
-    n_expected = param_values.shape[0]
-    try:
-        values = wrapped_func(param_values)
-        values = np.asarray(values).flatten()
-        if values.shape[0] != n_expected:
-            raise ValueError('Non-vectorized objective function.')
-
-    # loop-based evaluation
-    except ValueError as e:
-        values = np.array([wrapped_func(sample) for sample in param_values])
-
-    # run sensitivity analysis
-    print('Analyzing sensitivities.')
-    Si = sobol_analyze.analyze(problem, values, calc_second_order=calc_second_order, print_to_console=False)
-
-    # create Si output dataframe
-    Si_keys = ['S1', 'S1_conf', 'ST', 'ST_conf']
-    Si_filtered = {k: Si[k] for k in Si_keys if k in Si} # filter for output
-    Si_df = pd.DataFrame(Si_filtered, index=param_names)
-
-    # create S2 output dataframe
-    if calc_second_order:
-        S2_matrix = Si['S2']
-        S2_df = pd.DataFrame(S2_matrix, index=param_names, columns=param_names)
-        S2_df = S2_df.fillna(S2_df.T)
-    else:
-        S2_df = pd.DataFrame()
-
-    ### end of calculations
-    end_time = time.time()
-    run_time = end_time - start_time
-    if verbose:
-        num_to_plot = np.minimum(num_to_plot, n_params)
-        print(f'\nRun time: {run_time:.2f}s')
-        # plotting imports
+        ### imports
         try:
-            import matplotlib.pyplot as plt
-            import seaborn as sns
+            import numpy as np
+            from SALib.sample import sobol as sobol_sample
+            from SALib.analyze import sobol as sobol_analyze
+            import pandas as pd
+            import time
         except ImportError as e:
-            raise ImportError(f'Plotting requires dependencies: (matplotlib, seaborn).') from e
-
-        # sort by S1
-        sort_idx = np.argsort(Si['S1'])
-        s1_sorted = Si['S1'][sort_idx][-num_to_plot:]
-        st_sorted = Si['ST'][sort_idx][-num_to_plot:]
-        s1_conf_sorted = Si['S1_conf'][sort_idx][-num_to_plot:]
-        st_conf_sorted = Si['ST_conf'][sort_idx][-num_to_plot:]
-        names_sorted = [np.array(param_names)[i] for i in sort_idx][-num_to_plot:]
-        index = np.arange(len(names_sorted))
-
-        ### plot 1: first-order (S1) and total-order (ST) indices
-        fig, ax = plt.subplots(1,1,figsize=(8, 5.5))
+            raise ImportError(f'Sensitivity analysis requires dependencies: (SALib, pandas).') from e
         
-        bar_width = 0.35
-        ax.barh(index + bar_width/2, s1_sorted, bar_width, xerr=s1_conf_sorted, 
-                   label='First-order ($S_1$)',
-                   alpha=1,
-                   capsize=2.5)
-        ax.set_yticks(index)
-        ax.set_yticklabels(names_sorted)
+        ### extract inputs
+        start_time = time.time()
+        bounds = np.array(bounds)
+        n_params = bounds.shape[0]
+        if param_names == None:
+            param_names = range(0,n_params)
+        elif len(param_names) != len(bounds):
+            raise ValueError('Length of param_names does not match length of bounds.')
+        
+        ### define problem for SALib
+        problem = {
+            'num_vars': n_params,
+            'names': param_names,
+            'bounds' : bounds
+            }
     
-        ax.barh(index - bar_width/2, st_sorted, bar_width,
-                   xerr=st_conf_sorted, 
-                   label='Total-order ($S_T$)',
-                   alpha=0.75, 
-                   capsize=2.5)
-        if log_scale:
-            ax.set_xscale('log')
-        ax.set_title('Sensitivity Indices ($S_1$, $S_T$)')
-        ax.legend()
-        plt.tight_layout()
-        plt.show()
-
+        ### generate samples
+        if verbose:
+            print(f'Generating Sobol samples (N={n_samples:,.0f}, D={n_params}).')
+        param_values = sobol_sample.sample(problem, n_samples, calc_second_order=calc_second_order)
+    
+        ### args / kwargs for the objective function
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = {}
+        def wrapped_func(x_samples):
+            return func(x_samples, *args, **kwargs)
+    
+        ### evaluate samples
+        # vectorized evaluation
+        n_expected = param_values.shape[0]
+        try:
+            values = wrapped_func(param_values)
+            values = np.asarray(values).flatten()
+            if values.shape[0] != n_expected:
+                raise ValueError('Non-vectorized objective function.')
+    
+        # loop-based evaluation
+        except ValueError as e:
+            values = np.array([wrapped_func(sample) for sample in param_values])
+    
+        # run sensitivity analysis
+        print('Analyzing sensitivities.')
+        Si = sobol_analyze.analyze(problem, values, calc_second_order=calc_second_order, print_to_console=False)
+    
+        # create Si output dataframe
+        Si_keys = ['S1', 'S1_conf', 'ST', 'ST_conf']
+        Si_filtered = {k: Si[k] for k in Si_keys if k in Si} # filter for output
+        Si_df = pd.DataFrame(Si_filtered, index=param_names)
+    
+        # create S2 output dataframe
         if calc_second_order:
-            ### plot 2: heatmap of second order indices
-            s2_plot, ax = plt.subplots(1,1,figsize=(8, 5.5))
+            S2_matrix = Si['S2']
+            S2_df = pd.DataFrame(S2_matrix, index=param_names, columns=param_names)
+            S2_df = S2_df.fillna(S2_df.T)
+        else:
+            S2_df = pd.DataFrame()
+    
+        ### end of calculations
+        end_time = time.time()
+        run_time = end_time - start_time
+        if verbose:
+            num_to_plot = np.minimum(num_to_plot, n_params)
+            print(f'\nRun time: {run_time:.2f}s')
+            # plotting imports
+            try:
+                import matplotlib.pyplot as plt
+                import seaborn as sns
+            except ImportError as e:
+                raise ImportError(f'Plotting requires dependencies: (matplotlib, seaborn).') from e
+    
+            # sort by S1
+            sort_idx = np.argsort(Si['S1'])
+            s1_sorted = Si['S1'][sort_idx][-num_to_plot:]
+            st_sorted = Si['ST'][sort_idx][-num_to_plot:]
+            s1_conf_sorted = Si['S1_conf'][sort_idx][-num_to_plot:]
+            st_conf_sorted = Si['ST_conf'][sort_idx][-num_to_plot:]
+            names_sorted = [np.array(param_names)[i] for i in sort_idx][-num_to_plot:]
+            index = np.arange(len(names_sorted))
+    
+            ### plot 1: first-order (S1) and total-order (ST) indices
+            fig, ax = plt.subplots(1,1,figsize=(8, 5.5))
             
-            top_idx_to_show = sort_idx[-num_to_plot:]
-            S2_filtered = S2_df.iloc[top_idx_to_show, top_idx_to_show]
-            mask_filtered = np.tril(np.ones_like(S2_filtered, dtype=bool))
-            sns.heatmap(data=S2_filtered, mask=mask_filtered, annot=True, fmt='.2f')
-            ax.set_title('Second-order Interactions ($S_2$)')
-            ax.invert_yaxis()
-            plt.yticks(rotation=0)
+            bar_width = 0.35
+            ax.barh(index + bar_width/2, s1_sorted, bar_width, xerr=s1_conf_sorted, 
+                       label='First-order ($S_1$)',
+                       alpha=1,
+                       capsize=2.5)
+            ax.set_yticks(index)
+            ax.set_yticklabels(names_sorted)
+        
+            ax.barh(index - bar_width/2, st_sorted, bar_width,
+                       xerr=st_conf_sorted, 
+                       label='Total-order ($S_T$)',
+                       alpha=0.75, 
+                       capsize=2.5)
+            if log_scale:
+                ax.set_xscale('log')
+            ax.set_title('Sensitivity Indices ($S_1$, $S_T$)')
+            ax.legend()
             plt.tight_layout()
             plt.show()
     
-    return Si_df, S2_df
+            if calc_second_order:
+                ### plot 2: heatmap of second order indices
+                s2_plot, ax = plt.subplots(1,1,figsize=(8, 5.5))
+                
+                top_idx_to_show = sort_idx[-num_to_plot:]
+                S2_filtered = S2_df.iloc[top_idx_to_show, top_idx_to_show]
+                mask_filtered = np.tril(np.ones_like(S2_filtered, dtype=bool))
+                sns.heatmap(data=S2_filtered, mask=mask_filtered, annot=True, fmt='.2f')
+                ax.set_title('Second-order Interactions ($S_2$)')
+                ax.invert_yaxis()
+                plt.yticks(rotation=0)
+                plt.tight_layout()
+                plt.show()
+        
+        return Si_df, S2_df
+except:
+    pass
 
 ### data transforms
 def isotropize(data):
@@ -569,246 +572,250 @@ try:
 except:
     pass
 
-
-def analyze(data, transform=False):
-    '''Quick analysis of data matrix.'''
-
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    from sklearn.linear_model import LinearRegression
-    from sklearn.metrics import r2_score
-    from sklearn.decomposition import PCA
-    from sklearn.preprocessing import StandardScaler
-
-    ### convert to dataframe
-    df = pd.DataFrame(data).select_dtypes(include=[np.number])
-    param_names = df.columns
-    data_raw = df.values
-
-    # arcsinh transform for orders of magnitude
-    if transform:
-        data = np.arcsinh(data_raw)
-        print('Arcsinh transform applied.\n')
-    else:
-        data = data_raw
-
-     # scaled data for PCA
-    scaler = StandardScaler()
-    data_scaled = scaler.fit_transform(data)
-
-    # n_dimensions
-    n_dim = data.shape[1]
-    if n_dim == 0:
-        print('No numeric columns found.')
-        return None
-
-    ### PCA
-    if n_dim > 2:
-        pca_2d = PCA(n_components=2)
-        try:
-            data_reduced = pca_2d.fit_transform(data_scaled)
-        except ValueError:
-            data = np.arcsinh(data)
-            data_scaled = scaler.fit_transform(data)
-            data_reduced = pca_2d.fit_transform(data_scaled)
-            print('Arcsinh transform applied (unstable Z-scaling).')
-        
-        # force scaling if PCA is null
-        if np.isnan(data_reduced).any() or np.isinf(data_reduced).any():
+try:
+    def analyze(data, transform=False):
+        '''Quick analysis of data matrix.'''
+    
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import r2_score
+        from sklearn.decomposition import PCA
+        from sklearn.preprocessing import StandardScaler
+        from scipy import stats
+    
+        ### convert to dataframe
+        df = pd.DataFrame(data).select_dtypes(include=[np.number])
+        param_names = df.columns
+        data_raw = df.values
+    
+        # arcsinh transform for orders of magnitude
+        if transform:
             data = np.arcsinh(data_raw)
-            data_scaled = scaler.fit_transform(data)
-            data_reduced = pca_2d.fit_transform(data_scaled)
-            print('Arcsinh transform applied (unstable covariance).')
-        x, y = data_reduced[:,0], data_reduced[:,1]
-
-        ### loadings
-        loadings = pd.DataFrame(pca_2d.components_.T, columns=['PC1', 'PC2'], index=param_names)
-        loadings['Magnitude'] = np.sqrt(loadings['PC1']**2 + loadings['PC2']**2)
-        loadings = loadings.sort_values(by='Magnitude', ascending=False).head(15)
-        
-        # variance
-        var_pc1 = pca_2d.explained_variance_ratio_[0]
-        var_pc2 = pca_2d.explained_variance_ratio_[1]
-        total_var = var_pc1 + var_pc2
-
-        variance_row = pd.DataFrame(
-            [[var_pc1, var_pc2, total_var]], 
-            columns=['PC1', 'PC2', 'Magnitude'], 
-            index=['Explained Var.']
-            )
-        loadings = pd.concat([loadings, variance_row])
-
-    # 2d plots
-    elif n_dim == 2:
-        x, y = data[:,0], data[:,1]
-
-    # 1d plot
-    else:
-        print('- Stats:')
-        print(f'Mean: {np.mean(data):.3g}')
-        print(f'Median: {np.median(data):.3g}')
-        print(f'Stdev: {np.std(data):.3g}')
-        
-        sns.kdeplot(x=data.flatten(),alpha=0.75)
-        plt.title('Probability Density')
-        plt.xlabel('Value')
-        plt.show()
-        return None
-
-    # remove nulls from data
-    valid_indices = ~np.isnan(x) & ~np.isnan(y)
-    x, y = x[valid_indices], y[valid_indices]
-    
-    ### pairwise comparison
-    try:
-        ### normalized standard deviation (occupancy)
-        N = len(data)
-        span = data.max() - data.min()
-        dim_sds = np.std(data, axis=0, ddof=1)
-        norm_sds = dim_sds / span
-        
-        # standard error of the standard deviation (for a normal-ish distribution) is approx sigma / sqrt(2N)
-        dim_se = dim_sds / np.sqrt(2 * N) 
-        norm_se = dim_se / span
-        total_occupancy = np.sqrt(np.mean(norm_sds**2))
-        total_occupancy_se = np.mean(norm_se) # average uncertainty across the 11-D space
-
-        ### normalized differential entropy
-        efficiencies = []
-        
-        # iterate through dimensions
-        col_spans = []
-        for i in range(data.shape[1]):
-            column_data = data[:, i]
-            
-            # actual differential entropy (in nats)
-            h_actual = stats.differential_entropy(column_data)
-            col_span = np.max(column_data) - np.min(column_data) # max possible entropy assumes uniform distribution over the span
-            if col_span > 0:
-                efficiencies.append(np.exp(h_actual) / col_span)
-                col_spans.append(col_span)
-            else:
-                efficiencies.append(0.0)
-        col_spans = np.array(col_spans)
-        efficiencies = np.array(efficiencies)
-        norm_entropy = np.mean(efficiencies)
-        entropy_se = np.std(efficiencies, ddof=1) / np.sqrt(len(efficiencies)) # standard error across dimensions
-        norm_span = np.linalg.norm(col_spans)
-        print('Stats:')
-        print(f'- Norm. Stdev: {total_occupancy:.1%} ± {total_occupancy_se:.1%}')
-        print(f'- Entropy: {norm_entropy:.1%} ± {entropy_se:.1%}')
-        print(f'- Span: {norm_span:.3g}\n')
-        
-        ### print metrics
-        if n_dim > 2:
-            print('Principal Axes:')
-        
-        # 2d metrics
+            print('Arcsinh transform applied.\n')
         else:
-            print('Axes:')
-            ### calculate metrics
-            # pearson correlation
-            corr = stats.pearsonr(x, y)
+            data = data_raw
     
-            # wilcoxon signed-rank test
-            t_stat, p_value = stats.wilcoxon(y,x)
-            x_mean = np.mean(x)
-            ratio = np.mean(y) / x_mean if x_mean != 0 else np.nan # crashes if denom is 0
+         # scaled data for PCA
+        scaler = StandardScaler()
+        data_scaled = scaler.fit_transform(data)
     
-            # linear regression
-            lin_model = LinearRegression()
-            lin_model.fit(x.reshape(-1,1),y.reshape(-1,1))
-            r2 = lin_model.score(x.reshape(-1,1),y.reshape(-1,1))
-            print(f'- Correlation: {corr[0]:.3f} (p={corr[1]:.3e})')
-            print(f'- Regression: y = {lin_model.coef_[0][0]:.3g}x + {lin_model.intercept_[0]:.3g}  (r2={r2:.3f})')
-            print(f'- Ratio: {ratio:.2g} (p={p_value:.3g})\n')
-        print(loadings.rename_axis('Dimension')[:-1].round(3).to_markdown())
-        pca_variance = loadings[-1:].copy()
-        pca_variance.rename(columns={'Magnitude':'Total'},inplace=True)
-        print(pca_variance.round(3).to_markdown())
-        # print(loadings[-1:].round(3).to_markdown())
-        print()
+        # n_dimensions
+        n_dim = data.shape[1]
+        if n_dim == 0:
+            print('No numeric columns found.')
+            return None
+    
+        ### PCA
+        if n_dim > 2:
+            pca_2d = PCA(n_components=2)
+            try:
+                data_reduced = pca_2d.fit_transform(data_scaled)
+            except ValueError:
+                data = np.arcsinh(data)
+                data_scaled = scaler.fit_transform(data)
+                data_reduced = pca_2d.fit_transform(data_scaled)
+                print('Arcsinh transform applied (unstable Z-scaling).')
+            
+            # force scaling if PCA is null
+            if np.isnan(data_reduced).any() or np.isinf(data_reduced).any():
+                data = np.arcsinh(data_raw)
+                data_scaled = scaler.fit_transform(data)
+                data_reduced = pca_2d.fit_transform(data_scaled)
+                print('Arcsinh transform applied (unstable covariance).')
+            x, y = data_reduced[:,0], data_reduced[:,1]
+    
+            ### loadings
+            loadings = pd.DataFrame(pca_2d.components_.T, columns=['PC1', 'PC2'], index=param_names)
+            loadings['Magnitude'] = np.sqrt(loadings['PC1']**2 + loadings['PC2']**2)
+            loadings = loadings.sort_values(by='Magnitude', ascending=False).head(15)
+            
+            # variance
+            var_pc1 = pca_2d.explained_variance_ratio_[0]
+            var_pc2 = pca_2d.explained_variance_ratio_[1]
+            total_var = var_pc1 + var_pc2
+    
+            variance_row = pd.DataFrame(
+                [[var_pc1, var_pc2, total_var]], 
+                columns=['PC1', 'PC2', 'Magnitude'], 
+                index=['Explained Var.']
+                )
+            loadings = pd.concat([loadings, variance_row])
+    
+        # 2d plots
+        elif n_dim == 2:
+            x, y = data[:,0], data[:,1]
+    
+        # 1d plot
+        else:
+            print('- Stats:')
+            print(f'Mean: {np.mean(data):.3g}')
+            print(f'Median: {np.median(data):.3g}')
+            print(f'Stdev: {np.std(data):.3g}')
+            
+            sns.kdeplot(x=data.flatten(),alpha=0.75)
+            plt.title('Probability Density')
+            plt.xlabel('Value')
+            plt.show()
+            return None
+    
+        # remove nulls from data
+        valid_indices = ~np.isnan(x) & ~np.isnan(y)
+        x, y = x[valid_indices], y[valid_indices]
         
-    except Exception as e:
-        print(f'Bypassing metrics ({e})')
-
-    ### plot
-    fig, ax = plt.subplots(1,2,figsize=(11,5.5))
-
-    # scatter
-    ax[0].scatter(x=x,y=y,s=1)
-    ax[0].set_xlabel('Axis 1')
-    ax[0].set_ylabel('Axis 2')
-    ax[0].set_title('Principal Components')
-
-    # 2-d
-    sns.kdeplot(x=x,alpha=0.75,label='Axis 1', ax=ax[1], common_norm=False)
-    sns.kdeplot(x=y,alpha=0.75,label='Axis 2', ax=ax[1], common_norm=False)
-    ax[1].set_title('Principal Components')
-    ax[1].set_xlabel('')
-    ax[1].set_ylabel('')
-    ax[1].legend()
+        ### pairwise comparison
+        try:
+            ### normalized standard deviation (occupancy)
+            N = len(data)
+            span = data.max() - data.min()
+            dim_sds = np.std(data, axis=0, ddof=1)
+            norm_sds = dim_sds / span
+            
+            # standard error of the standard deviation (for a normal-ish distribution) is approx sigma / sqrt(2N)
+            dim_se = dim_sds / np.sqrt(2 * N) 
+            norm_se = dim_se / span
+            total_occupancy = np.sqrt(np.mean(norm_sds**2))
+            total_occupancy_se = np.mean(norm_se) # average uncertainty across the 11-D space
     
-    plt.tight_layout()
-    plt.show()
-    
-    
-    ### comparisons
-    # correlation matrix
-    df_transformed = pd.DataFrame(data, columns=param_names)
-    corr_df = df_transformed.corr()
-    
-    # filter to top 10 correlations dimension
-    if df.shape[1] > 10:
-        overall_corr = corr_df.abs().mean().sort_values(ascending=False)
-        top_vars = overall_corr.head(10).index
-        corr_plot_data = corr_df.loc[top_vars, top_vars]
-    else:
-        corr_plot_data = corr_df
-    corr_plot_data = corr_plot_data.rename(index=lambda x: str(x)[:15], columns=lambda x: str(x)[:10])
-    
-    # relative ratios
-    top_params = loadings.iloc[:-1].head(15).index.tolist()
-    df_top = df[top_params]
-    n_top = len(top_params)
-    means = df_top.mean().values # top means
-    ratio_matrix = means[:, None] / means[None, :] # ratios
-    
-    # wilcoxon p-values
-    p_matrix = np.zeros((n_top, n_top))
-    for i in range(n_top):
-        for j in range(n_top):
-            if i == j:
-                p_matrix[i, j] = 1.0
+            ### normalized differential entropy
+            efficiencies = []
+            
+            # iterate through dimensions
+            col_spans = []
+            for i in range(data.shape[1]):
+                column_data = data[:, i]
+                
+                # actual differential entropy (in nats)
+                h_actual = stats.differential_entropy(column_data)
+                col_span = np.max(column_data) - np.min(column_data) # max possible entropy assumes uniform distribution over the span
+                if col_span > 0:
+                    efficiencies.append(np.exp(h_actual) / col_span)
+                    col_spans.append(col_span)
+                else:
+                    efficiencies.append(0.0)
+            col_spans = np.array(col_spans)
+            efficiencies = np.array(efficiencies)
+            norm_entropy = np.mean(efficiencies)
+            entropy_se = np.std(efficiencies, ddof=1) / np.sqrt(len(efficiencies)) # standard error across dimensions
+            norm_span = np.linalg.norm(col_spans)
+            print('Stats:')
+            print(f'- Norm. Stdev: {total_occupancy:.1%} ± {total_occupancy_se:.1%}')
+            print(f'- Entropy: {norm_entropy:.1%} ± {entropy_se:.1%}')
+            print(f'- Span: {norm_span:.3g}\n')
+            
+            ### print metrics
+            if n_dim > 2:
+                print('Principal Axes:')
+            
+            # 2d metrics
             else:
-                _, p = stats.ttest_rel(df_top.iloc[:, i], df_top.iloc[:, j])
-                p_matrix[i, j] = p
-
-    # create ratio dataframe
-    ratio_df = pd.DataFrame(ratio_matrix, index=top_params, columns=top_params)
-    
-    ### plot comparisons
-    fig, ax = plt.subplots(1,2,figsize=(11.5,5))
-    
-    # correlations
-    sns.heatmap(corr_plot_data, ax=ax[0], center=0)
-    ax[0].set_title('Correlations')
-
-    # ratios
-    annot_matrix = []
-    for i in range(len(top_params)):
-        row_annot = []
-        for j in range(len(top_params)):
-            r = ratio_matrix[i, j]
-            p = p_matrix[i, j]
-            star = '*' if p < 0.05 else ''
-            row_annot.append(f'{star}')
-        annot_matrix.append(row_annot)
+                print('Axes:')
+                ### calculate metrics
+                # pearson correlation
+                corr = stats.pearsonr(x, y)
         
-    # sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1])
-    sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
-    ax[1].set_title('Ratios')
+                # wilcoxon signed-rank test
+                t_stat, p_value = stats.wilcoxon(y,x)
+                x_mean = np.mean(x)
+                ratio = np.mean(y) / x_mean if x_mean != 0 else np.nan # crashes if denom is 0
+        
+                # linear regression
+                lin_model = LinearRegression()
+                lin_model.fit(x.reshape(-1,1),y.reshape(-1,1))
+                r2 = lin_model.score(x.reshape(-1,1),y.reshape(-1,1))
+                print(f'- Correlation: {corr[0]:.3f} (p={corr[1]:.3e})')
+                print(f'- Regression: y = {lin_model.coef_[0][0]:.3g}x + {lin_model.intercept_[0]:.3g}  (r2={r2:.3f})')
+                print(f'- Ratio: {ratio:.2g} (p={p_value:.3g})\n')
+            print(loadings.rename_axis('Dimension')[:-1].round(3).to_markdown())
+            pca_variance = loadings[-1:].copy()
+            pca_variance.rename(columns={'Magnitude':'Total'},inplace=True)
+            print(pca_variance.round(3).to_markdown())
+            # print(loadings[-1:].round(3).to_markdown())
+            print()
+            
+        except Exception as e:
+            print(f'Bypassing metrics ({e})')
     
-    plt.tight_layout()
-    plt.show()
+        ### plot
+        fig, ax = plt.subplots(1,2,figsize=(11,5.5))
+    
+        # scatter
+        ax[0].scatter(x=x,y=y,s=1)
+        ax[0].set_xlabel('Axis 1')
+        ax[0].set_ylabel('Axis 2')
+        ax[0].set_title('Principal Components')
+    
+        # 2-d
+        sns.kdeplot(x=x,alpha=0.75,label='Axis 1', ax=ax[1], common_norm=False)
+        sns.kdeplot(x=y,alpha=0.75,label='Axis 2', ax=ax[1], common_norm=False)
+        ax[1].set_title('Principal Components')
+        ax[1].set_xlabel('')
+        ax[1].set_ylabel('')
+        ax[1].legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+        
+        ### comparisons
+        # correlation matrix
+        df_transformed = pd.DataFrame(data, columns=param_names)
+        corr_df = df_transformed.corr()
+        
+        # filter to top 10 correlations dimension
+        if df.shape[1] > 10:
+            overall_corr = corr_df.abs().mean().sort_values(ascending=False)
+            top_vars = overall_corr.head(10).index
+            corr_plot_data = corr_df.loc[top_vars, top_vars]
+        else:
+            corr_plot_data = corr_df
+        corr_plot_data = corr_plot_data.rename(index=lambda x: str(x)[:15], columns=lambda x: str(x)[:10])
+        
+        # relative ratios
+        if n_dim > 2:
+            top_params = loadings.iloc[:-1].head(15).index.tolist()
+            df_top = df[top_params]
+            n_top = len(top_params)
+            means = df_top.mean().values # top means
+            ratio_matrix = means[:, None] / means[None, :] # ratios
+            
+            # wilcoxon p-values
+            p_matrix = np.zeros((n_top, n_top))
+            for i in range(n_top):
+                for j in range(n_top):
+                    if i == j:
+                        p_matrix[i, j] = 1.0
+                    else:
+                        _, p = stats.ttest_rel(df_top.iloc[:, i], df_top.iloc[:, j])
+                        p_matrix[i, j] = p
+        
+            # create ratio dataframe
+            ratio_df = pd.DataFrame(ratio_matrix, index=top_params, columns=top_params)
+            
+            ### plot comparisons
+            fig, ax = plt.subplots(1,2,figsize=(11.5,5))
+            
+            # correlations
+            sns.heatmap(corr_plot_data, ax=ax[0], center=0)
+            ax[0].set_title('Correlations')
+        
+            # ratios
+            annot_matrix = []
+            for i in range(len(top_params)):
+                row_annot = []
+                for j in range(len(top_params)):
+                    r = ratio_matrix[i, j]
+                    p = p_matrix[i, j]
+                    star = '*' if p < 0.05 else ''
+                    row_annot.append(f'{star}')
+                annot_matrix.append(row_annot)
+                
+            # sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1])
+            sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
+            ax[1].set_title('Ratios')
+            
+            plt.tight_layout()
+            plt.show()
+except:
+    pass
