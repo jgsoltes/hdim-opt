@@ -6,6 +6,7 @@ All core functions, listed below, are single-line executable and require three e
 
 * **quasar**: QUASAR optimization for high-dimensional problems.
 * **hyperellipsoid**: Generate a non-uniform hyperellipsoid density sequence.
+* **analyze**: Numerically analyze any given dataset.
 * **sensitivity**: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
 
 * **lorentzian**: Fit a Lorentzian/Cauchy kernel density estimation to the data ensemble.

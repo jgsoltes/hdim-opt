@@ -584,9 +584,10 @@ try:
         from sklearn.decomposition import PCA
         from sklearn.preprocessing import StandardScaler
         from scipy import stats
+        import numpy as np
     
         ### convert to dataframe
-        df = pd.DataFrame(data).select_dtypes(include=[np.number])
+        df = pd.DataFrame(data).select_dtypes(include=[np.number]).dropna(how='any') # drop nulls
         param_names = df.columns
         data_raw = df.values
     
@@ -707,6 +708,12 @@ try:
             ### print metrics
             if n_dim > 2:
                 print('Principal Axes:')
+                print(loadings.rename_axis('Dimension')[:-1].round(3).to_markdown())
+                pca_variance = loadings[-1:].copy()
+                pca_variance.rename(columns={'Magnitude':'Total'},inplace=True)
+                print(pca_variance.round(3).to_markdown())
+                # print(loadings[-1:].round(3).to_markdown())
+                print()
             
             # 2d metrics
             else:
@@ -727,12 +734,6 @@ try:
                 print(f'- Correlation: {corr[0]:.3f} (p={corr[1]:.3e})')
                 print(f'- Regression: y = {lin_model.coef_[0][0]:.3g}x + {lin_model.intercept_[0]:.3g}  (r2={r2:.3f})')
                 print(f'- Ratio: {ratio:.2g} (p={p_value:.3g})\n')
-            print(loadings.rename_axis('Dimension')[:-1].round(3).to_markdown())
-            pca_variance = loadings[-1:].copy()
-            pca_variance.rename(columns={'Magnitude':'Total'},inplace=True)
-            print(pca_variance.round(3).to_markdown())
-            # print(loadings[-1:].round(3).to_markdown())
-            print()
             
         except Exception as e:
             print(f'Bypassing metrics ({e})')
@@ -811,7 +812,6 @@ try:
                     row_annot.append(f'{star}')
                 annot_matrix.append(row_annot)
                 
-            # sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1])
             sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
             ax[1].set_title('Ratios')
             
