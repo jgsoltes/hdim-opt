@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.4.3" # match version in __init__.py
-description = "High-dimensional numerical optimization and sampling toolkit for complex, non-differentiable problems."
+version = "1.4.4" # match version in __init__.py
+description = "Numerical optimization and quasi-Monte Carlo sampling toolkit for high-dimensional problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
 authors = [
@@ -18,15 +18,23 @@ license = { text = "MIT" }
 requires-python = ">=3.8"
 keywords = [
     "optimization", 
-    "high-dimensional", 
-    "sampling", 
+    "high-dimensional",
+    "sampling",
     "QUASAR", 
     "hyperellipsoid",
+    "quasi-monte carlo",
     "evolutionary-algorithm",
     "non-differentiable",
     "global-optimization",
     "stochastic-optimization",
-    "black-box-optimization"
+    "black-box-optimization",
+    "quasi-adaptive",
+    "derivative-free",
+    "hyperparameter-optimization",
+    "signal decomposition",
+    "scipy-optimize",
+    "metaheuristics",
+    "simulations"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -54,9 +62,7 @@ dependencies = ["numpy", "scipy"]
 [project.optional-dependencies]
 hds = [
     # required by HDS `pip install hdim_opt[hds]`
-    "pandas",
-    "scikit-learn", 
-    "joblib"
+    "scikit-learn",
 ]
 
 sensitivity = [
@@ -68,10 +74,11 @@ sensitivity = [
 lorentzian = ["numba"]
 
 [project.urls]
-Homepage = "https://github.com/jgsoltes/hdim_opt"
-Repository = "https://github.com/jgsoltes/hdim_opt"
-Issues = "https://github.com/jgsoltes/hdim_opt/issues"
-Changelog = "https://github.com/jgsoltes/hdim_opt/releases"
+Homepage = "https://github.com/jgsoltes/hdim-opt"
+Repository = "https://github.com/jgsoltes/hdim-opt"
+Issues = "https://github.com/jgsoltes/hdim-opt/issues"
+Changelog = "https://github.com/jgsoltes/hdim-opt/releases"
+Documentation = "https://github.com/jgsoltes/hdim-opt/blob/main/README.md"
 
 [tool.setuptools.packages.find]
 where = ["."]

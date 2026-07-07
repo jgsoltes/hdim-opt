@@ -1,8 +1,23 @@
+### imports
+try:
+    import numpy as np
+    from scipy import stats
+    from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
+    from sklearn.random_projection import GaussianRandomProjection
+    from sklearn.decomposition import PCA
+    import scipy.cluster.hierarchy as shc
+    from sklearn.neighbors import BallTree
+    import time
+    import warnings
+except ImportError as e:
+    raise ImportError(
+        f'HDS requires additional dependencies: (sklearn), if verbose: (matplotlib).'
+    ) from e
+
 # global epsilon
 epsilon = 1e-16
-import numpy as np
 
-### misc helper functions 
+### misc helper functions
 # sobol sampling
 def sobol_sample(n_samples, bounds, normalize=False, seed=None):
     '''
@@ -16,7 +31,7 @@ def sobol_sample(n_samples, bounds, normalize=False, seed=None):
     Outputs:
         - sobol_sequence: Sobol sample sequence.
     '''
-    from scipy import stats
+    
     # clean bounds & n_dimensions
     bounds = np.array(bounds)
     n_dimensions = bounds.shape[0]
@@ -30,7 +45,7 @@ def sobol_sample(n_samples, bounds, normalize=False, seed=None):
         sobol_sequence = sobol_samples_unit
 
     return sobol_sequence
-
+    
 def sample_hypersphere(n_dimensions, radius, 
                        n_samples_in_sphere, radius_qmc_sequence):
     '''
@@ -88,10 +103,6 @@ def sample_in_voids(existing_samples, n_to_fill, bounds_min, bounds_max,
         - Identify & fill voids in the sample space, using the out-of-bounds sample set.
         - Uses BallTree K-NearestNeighbors to identify voids.
     '''
-    from sklearn.neighbors import BallTree
-    from sklearn.random_projection import GaussianRandomProjection
-    from scipy import stats
-    import time
     
     # extract shape
     n_existing, n_dimensions = existing_samples.shape
@@ -177,29 +188,29 @@ def sample_in_voids(existing_samples, n_to_fill, bounds_min, bounds_max,
 def fit_pca_for_cluster(cluster_samples, current_origin, 
                         initial_samples_std, n_dimensions):
     '''
-    Performs PCA on a single cluster's samples or returns a default, 
-    called in parallel.
+    Performs fast SVD/Eigendecomposition on a single cluster's samples.
     '''
-
-    from sklearn.decomposition import PCA
-    
-    # extract shape
     n_cluster_samples = len(cluster_samples)
     
-    if n_cluster_samples > n_dimensions * 2 and n_cluster_samples > 0:
-        pca = PCA(n_components=n_dimensions)
-        pca.fit(cluster_samples)
+    if n_cluster_samples > n_dimensions * 2 and n_cluster_samples > 1:
+        centered = cluster_samples - np.mean(cluster_samples, axis=0) # zero-center
+        cov = (centered.T @ centered) / (n_cluster_samples - 1) # calculate covariance matrix
+        eigenvalues, eigenvectors = np.linalg.eigh(cov) # eigenvalues and normalized eigenvectors in ascending order
+        variances = eigenvalues[::-1] # reverse to get descending order
+        components = eigenvectors[:, ::-1] # reverse to get descending order
         
-        return {'origin': current_origin, 
-                'components': pca.components_.T, 
-                'variances': pca.explained_variance_}
+        return {
+            'origin': current_origin,
+            'components': components, # already transposed to fit matrix multiplication structure
+            'variances': np.maximum(variances, 0.0) # guard against negative float noise
+        }
     else:
-        # handle empty/too small clusters
         fixed_variance = np.ones(n_dimensions) * initial_samples_std
-
-        return {'origin': current_origin, 
-                'components': np.eye(n_dimensions), 
-                'variances': fixed_variance}
+        return {
+            'origin': current_origin,
+            'components': np.eye(n_dimensions),
+            'variances': fixed_variance
+        }
 
 
 ### main sampling function
@@ -233,24 +244,24 @@ def sample(n_samples, bounds,
         - verbose: Boolean to display stats and plots.
     Outputs:
         - hds_samples: Hyperellipsoid Density sample sequence.
+
+    Example Usage:
+        >>> ### parameter space
+        >>> n_dim = 10
+        >>> bounds = [(0,1)] * n_dim
+        >>> n_samples = 1000
+        
+        >>> ### optional weights
+        >>> weights = {0 : {'center': 0.25, 'std': 0.33},}
+        
+        >>> ### generate samples
+        >>> hds_samples = sample(n_samples, 
+                             bounds, 
+                             weights=weights,
+                             verbose=True)
     '''
 
-    # imports
-    try:
-        import pandas as pd
-        from scipy import stats
-        from joblib import Parallel, delayed
-        from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
-        from sklearn.random_projection import GaussianRandomProjection
-        from sklearn.decomposition import PCA
-        import scipy.cluster.hierarchy as shc
-        import time
-        import warnings
-    except ImportError as e:
-        raise ImportError(
-            f"HDS requires additional dependencies: (pandas, sklearn), if verbose: (matplotlib)."
-        ) from e
-        
+    # filter Sobol power-of-2 warning
     warnings.filterwarnings('ignore', category=UserWarning)
 
     # initialize misc parameters:
@@ -290,8 +301,7 @@ def sample(n_samples, bounds,
     # generate initial QMC samples:
     qmc_start_time = time.time()
     initial_sobol_sampler = stats.qmc.Sobol(d=n_dimensions, seed=np.random.randint(0, 1000))
-    initial_samples_unit = initial_sobol_sampler.random(n=n_initial_qmc)
-    initial_samples = initial_samples_unit
+    initial_samples = initial_sobol_sampler.random(n=n_initial_qmc)
     
     # calculate sample weights based on input
     sample_weights = np.ones(initial_samples.shape[0])
@@ -372,9 +382,7 @@ def sample(n_samples, bounds,
     # calculate hyperellipsoid shapes via PCA (parallelized)
     if verbose:
         print(f'Orienting axes.')
-    ellipsoid_params = Parallel(n_jobs=-1)(
-        delayed(fit_pca_for_cluster)(*args) for args in cluster_data_inputs
-        )
+    ellipsoid_params = [fit_pca_for_cluster(*args) for args in cluster_data_inputs]
     
     # recalculate cluster counts from labels, for proportional sampling
     cluster_sample_counts = np.array([np.sum(cluster_labels == i) for i in range(n_hyperellipsoids)])
@@ -489,20 +497,19 @@ def sample(n_samples, bounds,
         # visualization imports
         try:
             import matplotlib.pyplot as plt
-            import seaborn as sns
-            from matplotlib.patches import Circle, Rectangle
         except ImportError as e:
             raise ImportError(
-                f'Plotting requires dependencies: (matplotlib, seaborn).'
+                f'Plotting requires dependencies: (matplotlib).'
             ) from e
         
         # print results
-        print('\nresults:')
-        print('    - number of samples:', len(hds_sequence))
-        print(f'    - sample generation time: {sample_generation_time:.2f}')
-        print(f'    - number of hyperellipsoids: {n_hyperellipsoids}')
+        print('\nHDS Sequence:')
+        print(' - Samples:', len(hds_sequence))
+        print(' - Dimensions:', n_dimensions)
+        print(f' - Hyperellipsoids: {n_hyperellipsoids}')
+        print(f' - Generation time: {sample_generation_time:.2f}')
         if weights:
-            print(f'    - weights: {weights}')
+            print(f' - Weights: {weights}')
         
         # generate a sobol sequence for comparison
         sobol_sampler = stats.qmc.Sobol(d=n_dimensions, seed=seed+2) # offset seed to be different from initial qmc
@@ -514,13 +521,15 @@ def sample(n_samples, bounds,
 
         # samples stats:
         hds_mean = np.mean(hds_sequence)
-        sobol_mean = np.mean(sobol_samples)
         hds_std = np.std(hds_sequence)
-        sobol_std = np.std(sobol_samples)
+        hds_max = np.max(hds_sequence)
+        hds_min = np.min(hds_sequence)
 
-        print('\nstats:')
-        print(f'    - HDS mean: {hds_mean:.2f}')
-        print(f'    - HDS stdev: {hds_std:.2f}\n')
+        print('\nStats:')
+        print(f' - Mean: {hds_mean:.2f}')
+        print(f' - Stdev: {hds_std:.2f}')
+        print(f' - Max: {hds_max:.2f}')
+        print(f' - Min: {hds_min:.2f}\n')
 
         # dendrogram of centroids
         if plot_dendrogram:
@@ -531,7 +540,7 @@ def sample(n_samples, bounds,
                 # using pre-calculated linkage matrix
                 shc.dendrogram(linkage_matrix, color_threshold=optimal_distance, above_threshold_color='gray')
                 plt.axhline(y=optimal_distance, color='r', linestyle='--', label=f'Optimal Cutoff (k={n_hyperellipsoids})')
-                plt.ylabel('Dissimilarity Distance')
+                plt.ylabel('Dissimilarity')
                 plt.xticks([])
                 
                 plt.legend(loc='upper right')
@@ -540,11 +549,11 @@ def sample(n_samples, bounds,
         # plot for 1d samples
         if n_dimensions == 1:
             plt.figure(figsize=(6,5))
-            plt.hist(hds_sequence, bins=30, alpha=0.9, label='HDS Samples')
-            plt.hist(sobol_samples, bins=30, alpha=0.5, label='Sobol Samples')
-            plt.title('HDS Sample Distribution')
+            plt.hist(hds_sequence, bins=30, alpha=0.9, label='HDS')
+            plt.hist(sobol_samples, bins=30, alpha=0.67, label='Sobol')
+            plt.title('HDS Distribution')
             plt.xlabel('Value')
-            plt.ylabel('Frequency')
+            plt.ylabel('Density')
             plt.legend()
             plt.show()
             return hds_sequence
@@ -562,7 +571,7 @@ def sample(n_samples, bounds,
             hds_sequence_plot = pca.transform(hds_sequence)
             sobol_samples_plot = pca.transform(sobol_samples)
             origins_plot = pca.transform(origins)
-            title_str = f'Parameter Space (PCA): n={n_samples}, D={n_dimensions}'
+            title_str = f'Parameter Space (PCA) (N={n_samples}, D={n_dimensions})'
             xlabel_str = f'Principal Component 1 ({pca.explained_variance_ratio_[0]:.1%})'
             ylabel_str = f'Principal Component 2 ({pca.explained_variance_ratio_[1]:.1%})'
         else:
@@ -570,39 +579,30 @@ def sample(n_samples, bounds,
             hds_sequence_plot = hds_sequence
             sobol_samples_plot = sobol_samples
             origins_plot = origins
-            title_str = f'Parameter Space: n={n_samples}, D={n_dimensions}'
-            xlabel_str = f'Dimension 0'
-            ylabel_str = f'Dimension 1'
+            title_str = f'Parameter Space (N={n_samples}, D={n_dimensions})'
+            xlabel_str = f''
+            ylabel_str = f''
 
-        # samples
+        ### plot sample distributions
         fig, ax = plt.subplots(1,2,figsize=(9,5))
         
-        ax[0].scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], s=0.67, zorder=5, color='deepskyblue', 
-                      label='HDS Samples')
-        
-        # data hypercube boundary
-        min_plot = np.min(data_to_plot, axis=0)
-        max_plot = np.max(data_to_plot, axis=0)
-        width = max_plot[0] - min_plot[0]
-        height = max_plot[1] - min_plot[1]
-        hypercube_boundary = Rectangle((min_plot[0], min_plot[1]), width, height, fill=False, alpha=0.75, linewidth=1, 
-                                       linestyle='--', color='cornflowerblue', zorder=6)
-        
-        ax[0].add_patch(hypercube_boundary)
-        ax[0].set_title(title_str, fontsize=14)
+        # plot sample PCA
+        ax[0].scatter(hds_sequence_plot[:, 0], hds_sequence_plot[:, 1], s=2, zorder=5, label='HDS')
+        ax[0].scatter(sobol_samples_plot[:, 0], sobol_samples_plot[:, 1], s=2.5, alpha=0.6, label='Sobol')
+        ax[0].set_title(title_str)
         ax[0].set_xlabel(xlabel_str)
         ax[0].set_ylabel(ylabel_str)
-        ax[0].legend(loc=(0.7,0.87), fontsize=8)
+        ax[0].legend()
+        
 
-        # plot histograms
-        ax[1].hist(hds_sequence.flatten(), bins=30, color='deepskyblue', edgecolor='black', label='HDS Samples', alpha=0.75)
+        # plot histogram
+        ax[1].hist(hds_sequence.flatten(), bins=30, alpha=0.75)
         ax[1].set_title('HDS Distribution')
         ax[1].set_ylabel('')
         ax[1].set_yticks([])
-        ax[1].set_xticks([])
         ax[1].set_xlabel('')
 
-        plt.tight_layout()
+        plt.tight_layout(pad=0)
         plt.show()
 
     return hds_sequence

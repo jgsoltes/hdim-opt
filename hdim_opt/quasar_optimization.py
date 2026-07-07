@@ -1,8 +1,13 @@
-# global imports
+### global imports
 import numpy as np
 from scipy import stats
-epsilon = 1e-16 # small epsilon to prevent zero-point errors
+import time
+import warnings
 
+# numerical epsilon to avoid div0
+epsilon = np.finfo(float).tiny
+
+### helper functions
 def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     '''
     Objective:
@@ -18,12 +23,11 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
     # misc extracts
     n_dimensions = bounds.shape[0]
     
-    # if input is not a string assume it is the initial population
+    ### if input is not a string assume it is the initial population
     if isinstance(init, str):
-        init = init.lower() # ensure lowercase string
         
         # generate hyperellipsoid density sequence
-        if init == 'hds':
+        if (init == 'hds') or (init == 'hyperellipsoid'):
             # import hds
             try:
                 from . import hyperellipsoid_sampling as hds
@@ -40,7 +44,6 @@ def initialize_population(popsize, bounds, init, hds_weights, seed, verbose):
         elif init == 'sobol':
             if verbose:
                 print(f'Initializing: Sobol (N={popsize}, D={n_dimensions}).')
-            import warnings
             warnings.filterwarnings('ignore', category=UserWarning) # ignore power-of-2 warning
             sobol_sampler = stats.qmc.Sobol(d=n_dimensions, seed=seed)
             sobol_samples_unit = sobol_sampler.random(n=popsize)
@@ -366,14 +369,14 @@ def asym_reinit(population, current_fitnesses, bounds, reinit_method, seed, gene
     return population
     
 
-# main optimize function
+### main optimization function
 def optimize(func, bounds, args=(),
               init='sobol', popsize=None, maxiter=100,
               entangle_rate=0.33, polish=True, polish_minimizer=None,
-              patience=np.inf, tolerance=-np.inf, vectorized=False,
+              patience=np.inf, tolerance=-np.inf, vectorized='auto',
               kwargs={},
-              reinitialization='covariance', hds_weights=None,
               constraints=None, constraint_penalty=1e9,
+              reinitialization='covariance', hds_weights=None,
               verbose=True, plot_solutions=True, num_to_plot=10, plot_contour=True,
               workers=1, seed=None
               ):
@@ -417,12 +420,6 @@ def optimize(func, bounds, args=(),
         
         - kwargs: Dictionary of keyword arguments for the objective function.
 
-        - reinitialization: Type of sampling to use during a reinitialization event.
-            - 'covariance' for balance
-            - 'sobol' for exploration and speed
-        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
-            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
-            
         - constraints: Dictionary of constraints to penalize.
             - If possible, it is highly recommended to implement constraints as 
                 high penalties into user's objective function instead. The same logic is used here, but
@@ -435,6 +432,14 @@ def optimize(func, bounds, args=(),
                                     'heat_capacity': (test_constraint, '<=', 100) 
                                         }
         - constraint_penalty: Penalty applied to each constraint violated, defaults to 1e12.
+
+        - reinitialization: Type of re-sampling to use in the asymptotic reinitialization.
+            - Options are ['covariance', 'sobol'].
+            - 'covariance' (exploitative) is default for N > D problems.
+            - 'sobol' (explorative) is optional, for high exploration and faster computation.
+            - None to disable reinitialization calculations.
+        - hds_weights: Optional weights for hyperellipsoid density sampling initialization.
+            - {0 : {'center' : center, 'std': stdev}, 1: {...} }
         
         - verbose: Displays prints and plots.
             - Mutation factor distribution shown with hdim_opt.test_functions.plot_mutations()
@@ -455,19 +460,12 @@ def optimize(func, bounds, args=(),
     ################################# INITIALIZE PARAMETERS #################################
     
     # set random seed
-    import numpy as np
+    start_time = time.time()
     if seed == None:
         np.random.seed()
     else:
         np.random.seed(seed)
-
-    # handle case where time is not imported
-    if verbose:
-        try:
-            import time
-            start_time = time.time()
-        except:
-            pass        
+    
     
     # lowercase initialization string
     if type(init) == str:
@@ -522,7 +520,7 @@ def optimize(func, bounds, args=(),
         raise ValueError('Entanglement rate must be between [0,1].')
 
     # initialization error
-    if (type(init) == str) and init not in ['sobol','hds','random','lhs','latinhypercube']:
+    if (type(init) == str) and init not in ['sobol','hds','random','lhs','latinhypercube','hyperellipsoid',]:
         raise ValueError("Initial sampler must be one of ['sobol','random','hds','lhs'], or a custom population.")
     
     # patience error
@@ -544,7 +542,20 @@ def optimize(func, bounds, args=(),
             reinitialization = None
         print(f'\nEvolving ({reinitialization}):')
 
-    # match differential evolution conventions    
+    
+    ### match differential evolution conventions
+    if vectorized == 'auto':
+        try:
+            # if first two solutions return an array of 2 fitnesses, function supports vectorization
+            probe = func(initial_population[:2], *args, **kwargs)
+            if len(probe) == 2:
+                vectorized = True
+            else:
+                vectorized = False
+        except Exception: # assume non-vectorized
+            vectorized = False
+    
+    # vectorized evaluation
     if vectorized:
         initial_population = initial_population.T
         initial_fitnesses = func(initial_population.T, *args, **kwargs)
@@ -731,7 +742,6 @@ def optimize(func, bounds, args=(),
         
         # final population entropy
         try:
-            import warnings
             warnings.filterwarnings('ignore',category=RuntimeWarning)
             analysis_pop = population.T if vectorized else population
             noise = np.random.normal(0, 1e-12, analysis_pop.shape)
@@ -744,7 +754,7 @@ def optimize(func, bounds, args=(),
         from scipy.linalg import cho_factor, cho_solve
         pop_mean = np.mean(analysis_pop, axis=0)
         diff = best_solution - pop_mean
-        cov_matrix = np.cov(analysis_pop, rowvar=False)
+        cov_matrix = np.atleast_2d(np.cov(analysis_pop, rowvar=False))
         cov_matrix += np.eye(n_dimensions) * epsilon
         try:
             # covariance Cholesky factor

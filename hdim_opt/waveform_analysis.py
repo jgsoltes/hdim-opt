@@ -190,19 +190,23 @@ def apply_shielding(f, shielding_dB, rolloff_hf=500e6, rolloff_lf=1e3):
     Combines complex transfer function math with real-world 
     LF (Magnetic) and HF (Leakage) rolloff physics.
     '''
-    # base linear gain
-    base_gain = 10**(-shielding_dB/20) 
+    # base shielding (the best it gets)
+    base_leakage = 10**(-shielding_dB / 20) 
 
-    # HF rolloff
-    h_hf = 1 / (1 + 1j * (f / rolloff_hf))
+    # HF: leakage increases with frequency (Zero in the transfer function): H(s) = (1 + s/w_hf)
+    h_hf = 1 + 1j * (f / rolloff_hf)
 
-    # LF rolloff
-    h_lf = 1 / (1 + (rolloff_lf / (f + 1e-12)))
+    # LF: leakage increases as frequency drops toward DC: H(s) = (1 + w_lf/s)
+    h_lf = 1 + (rolloff_lf / (f + 1e-12))
 
-    # total complex shielding function
-    h_total = base_gain * h_hf * h_lf
+    # combined complex leakage
+    h_total_complex = base_leakage * h_hf * h_lf
     
-    return h_total
+    # magnitude capped at 1.0
+    mag = np.abs(h_total_complex)
+    scaling = np.where(mag > 1.0, 1.0 / mag, 1.0)
+    
+    return h_total_complex * scaling
     
 def analyze_waveform(x=None, y=None, sample_rate=None, domain='time', method='complex', 
                      tf_function=None, tf_kwargs=None, noise=0.0, verbose=True):

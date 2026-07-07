@@ -1,6 +1,6 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-Modern optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS exploitative QMC sampler, Sobol sensitivity analysis, signal waveform decomposition, and data transformations.
+Numerical optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS QMC sampler, Sobol sensitivity analysis, data analysis / transformations, signal waveform decomposition.
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples]:
 
@@ -36,12 +36,12 @@ obj_func = h.test_functions.rastrigin # Test function
 
 # Sampling
 ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
-iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
+iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize dataset
 h.analyze(ellipsoid_samples) # Analyze any dataset
 
 # Optimization
-solution, fitness = h.quasar(obj_func, bounds, init=iso_samples) # QUASAR evolutionary optimization
-Si, S2 = h.sensitivity(obj_func, bounds) # Sobol sensitivity analysis
+solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
+Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
 kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples, verbose=True) # Lorentzian KDE
 
 # Waveforms

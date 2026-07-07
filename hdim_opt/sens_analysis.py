@@ -421,7 +421,7 @@ try:
                 - Balloon applies query bandwidth; pointwise applies kernel bandwidths.
             - verbose: Boolean to display stats and plots.
         Outputs:
-            - log_intensity: Logarithmic un-normalized intensity.
+            - log_intensity: Logarithmic intensity.
         '''
         from scipy.special import gammaln
         ensemble = np.ascontiguousarray(np.atleast_2d(ensemble))

@@ -5,15 +5,15 @@ Functions:
 	- quasar: QUASAR optimization for high-dimensional problems.
 	- hyperellipsoid: Generate a non-uniform hyperellipsoid density sequence.
 	- sensitivity: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
-	- pareto: Easily create a multi-objective Pareto front trade-off analysis using QUASAR.
-
+	
+	- analyze: Generate a statistical summary of the input dataset.
 	- lorentzian: Fit a Lorentzian/Cauchy kernel density estimation to the data ensemble.
 	- isotropize/deisotropize: Isotropize the input data using ZCA.
 	- waveform: Decompose the input waveform signal array into a diagnostic summary.
 
 Modules:
 	- test_functions: Contains test functions for local optimization testing.
-	- waveform_analysis: Contains pulse signal generation functions.
+	- waveform_analysis: Contains pulse signal decompositions.
 
 Example Usage:
 
@@ -32,8 +32,8 @@ Example Usage:
 	>>> h.analyze(ellipsoid_samples) # Analyze any dataset
 
 	# Optimization
-	>>> solution, fitness = h.quasar(obj_func, bounds, init=iso_samples) # QUASAR evolutionary optimization
-	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sobol sensitivity analysis
+	>>> solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
+	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
 	>>> kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples) # Lorentzian KDE
 
 	# Waveforms
@@ -42,7 +42,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 
 # import core components
 from .quasar_optimization import optimize as quasar
