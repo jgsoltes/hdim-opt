@@ -2,11 +2,12 @@
 try:
     import numpy as np
     from scipy import stats
+    import scipy.cluster.hierarchy as shc
     from sklearn.cluster import MiniBatchKMeans, AgglomerativeClustering
     from sklearn.random_projection import GaussianRandomProjection
     from sklearn.decomposition import PCA
-    import scipy.cluster.hierarchy as shc
     from sklearn.neighbors import BallTree
+    from joblib import Parallel, delayed, cpu_count
     import time
     import warnings
 except ImportError as e:
@@ -15,7 +16,7 @@ except ImportError as e:
     ) from e
 
 # global epsilon
-epsilon = 1e-16
+epsilon = np.finfo(np.float64).tiny
 
 ### misc helper functions
 # sobol sampling
@@ -47,14 +48,16 @@ def sobol_sample(n_samples, bounds, normalize=False, seed=None):
     return sobol_sequence
     
 def sample_hypersphere(n_dimensions, radius, 
-                       n_samples_in_sphere, radius_qmc_sequence):
+                       n_samples_in_sphere, radius_qmc_sequence, seed=None):
     '''
     Objective:
         - Samples unit hyperspheres using Marsaglia polar vectors scaled by a QMC sequence.
     '''
+    # random state
+    rng = np.random.default_rng(seed)
     
     # generate normal distribution (for angular direction)
-    samples = np.random.normal(size=(n_samples_in_sphere, n_dimensions))
+    samples = rng.normal(size=(n_samples_in_sphere, n_dimensions))
     
     # normalize vectors to get points on the surface of a unit sphere (direction)
     squared_norms = np.sum(samples**2, axis=1)
@@ -73,7 +76,7 @@ def sample_hypersphere(n_dimensions, radius,
 
 def sample_hyperellipsoid(n_dimensions, n_samples_in_ellipsoid, 
                           origin, pca_components, pca_variances, 
-                          scaling_factor, radius_qmc_sequence=None):
+                          scaling_factor, radius_qmc_sequence=None, seed=None):
     '''
     Objective:
         - Generates samples inside the hyperellipsoid.
@@ -82,7 +85,7 @@ def sample_hyperellipsoid(n_dimensions, n_samples_in_ellipsoid,
     '''
     
     # generate samples in unit hypersphere
-    unit_sphere_samples = sample_hypersphere(n_dimensions, 1.0, n_samples_in_ellipsoid, radius_qmc_sequence)
+    unit_sphere_samples = sample_hypersphere(n_dimensions, 1.0, n_samples_in_ellipsoid, radius_qmc_sequence, seed)
     
     # axis lengths: L = sqrt(variance + epsilon) * scaling_factor
     axis_lengths = np.sqrt(pca_variances + epsilon) * scaling_factor
@@ -219,7 +222,8 @@ def sample(n_samples, bounds,
            weights=None, normalize=False,
            n_ellipsoids=None, n_initial_clusters=None, n_initial_qmc=None,
            ellipsoid_scaling_factor=None,
-           seed=None, plot_dendrogram=False, verbose=False):
+           seed=None, n_jobs=None,
+           plot_dendrogram=False, verbose=False):
     '''
     Objective:
         - Generates a Hyperellipsoid Density sample sequence over the specified parameter range.
@@ -240,6 +244,7 @@ def sample(n_samples, bounds,
             - Redunant if n_ellipsoids is specified.
         - n_initial_qmc: Number of initial QMC samples to use for cluster analysis.
         - seed: Random seed.
+        - n_jobs: Number of CPU cores to run. -1 for max performance.
         - plot_dendrogram: Boolean to display dendrogram used for ellipsoid determination.
         - verbose: Boolean to display stats and plots.
     Outputs:
@@ -270,6 +275,14 @@ def sample(n_samples, bounds,
         seed = time.time()
     seed = int(round(seed))
     np.random.seed(seed)
+
+    # default n_jobs if not specified
+    if n_jobs is None:
+        total_cores = cpu_count()
+        if total_cores > 2:
+            n_jobs = 2 # default to half the cores
+        else:
+            n_jobs = 1
 
     # initialize sampling parameters:
     n_samples = int(n_samples)
@@ -414,51 +427,43 @@ def sample(n_samples, bounds,
     radius_qmc_sampler = stats.qmc.Sobol(d=1, seed=seed+1) # offset seed from initial qmc
     radius_qmc_sequence_base = radius_qmc_sampler.random(n=int(n_samples * 2.5)) # generate extra samples
     radius_start_idx = 0
-    
-    # sequentially generate samples from each ellipsoid
-    collected_samples = []
+
+    ### initialize QMC sequences and arguments
+    tasks = []
+    current_idx = radius_start_idx
     for i, params in enumerate(ellipsoid_params):
         n_to_generate = n_samples_per_ellipsoid[i] * 2
         
-        # select next chunk of QMC radius sequence
-        radius_end_idx = radius_start_idx + n_to_generate
+        # grab the chunk this ellipsoid needs
+        chunk = radius_qmc_sequence_base[current_idx : current_idx + n_to_generate].flatten()
+        current_idx += n_to_generate
         
-        # prevent index out of bounds
-        if radius_end_idx > len(radius_qmc_sequence_base):
-            # use the remainder
-            radius_qmc_chunk = radius_qmc_sequence_base[radius_start_idx:].flatten()
-        else:
-            radius_qmc_chunk = radius_qmc_sequence_base[radius_start_idx:radius_end_idx].flatten()
+        # package all arguments needed for the function
+        if n_to_generate > 0 and chunk.size > 0:
+            task_seed = seed + i + 1000
+            tasks.append((
+                n_dimensions, n_to_generate, params['origin'], params['components'], 
+                params['variances'], ellipsoid_scaling_factor, chunk, n_samples_per_ellipsoid[i], task_seed
+            ))
+    
+    # self-contained worker function
+    def worker(dims, n_gen, origin, components, variances, scaling, qmc_chunk, target_n, seed):
+        # sample hyperellipsoid
+        samples = sample_hyperellipsoid(dims, n_gen, origin, components, variances, scaling, qmc_chunk, seed)
         
-        radius_start_idx = radius_end_idx
-
-        # prevent ValueError from empty array
-        if n_to_generate > 0 and radius_qmc_chunk.size == 0:
-            continue # skip ellipsoid if this chunk is empty
-
-        # generate samples inside current ellipsoid
-        ellipsoid_samples = sample_hyperellipsoid(n_dimensions, 
-                                                n_to_generate, 
-                                                params['origin'], 
-                                                params['components'],
-                                                params['variances'],
-                                                scaling_factor=ellipsoid_scaling_factor,
-                                                radius_qmc_sequence=radius_qmc_chunk
-                                                )
-        
-        # identify points outside boundaries ([0,1] hypercube)
-        in_bounds_mask = np.all(ellipsoid_samples >= 0, axis=1) & np.all(ellipsoid_samples <= 1, axis=1)
-        valid_samples = ellipsoid_samples[in_bounds_mask]
-        
-        # add required number of valid samples
-        num_to_add = min(n_samples_per_ellipsoid[i], len(valid_samples))
-        collected_samples.append(valid_samples[:num_to_add])
-        
-    # vstack
-    if collected_samples:
-        hds_samples_normalized = np.vstack(collected_samples)
-    else:
-        hds_samples_normalized = np.zeros((0, n_dimensions))
+        # bounds check
+        in_bounds = ((samples >= 0) & (samples <= 1)).all(axis=1)
+        valid = samples[in_bounds]
+        return valid[:target_n]
+    
+    # run on all cores
+    collected_samples = Parallel(n_jobs=n_jobs)(
+        delayed(worker)(*task) for task in tasks
+    )
+    
+    # filter out empty results and stack
+    collected_samples = [s for s in collected_samples if len(s) > 0]
+    hds_samples_normalized = np.vstack(collected_samples) if collected_samples else np.zeros((0, n_dimensions))
 
     # identify number of points to resample
     n_to_fill = n_samples - len(hds_samples_normalized) 
@@ -478,8 +483,7 @@ def sample(n_samples, bounds,
             )
         
         # combine original hds samples with new void samples
-        hds_samples_normalized = np.vstack([hds_samples_normalized, void_resamples])
-    
+        hds_samples_normalized = np.vstack([hds_samples_normalized, void_resamples])    
     hds_samples_normalized = hds_samples_normalized[:n_samples]
     
     if normalize:

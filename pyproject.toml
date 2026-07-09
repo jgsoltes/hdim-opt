@@ -63,6 +63,7 @@ dependencies = ["numpy", "scipy"]
 hds = [
     # required by HDS `pip install hdim_opt[hds]`
     "scikit-learn",
+    "joblib"
 ]
 
 sensitivity = [
