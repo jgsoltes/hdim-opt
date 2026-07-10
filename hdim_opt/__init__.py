@@ -5,6 +5,7 @@ Functions:
 	- quasar: QUASAR optimization for high-dimensional problems.
 	- hyperellipsoid: Generate a non-uniform hyperellipsoid density sequence.
 	- sensitivity: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
+	- minimize: Local optimization wrapper for scipy.optimize.
 	
 	- analyze: Generate a statistical summary of the input dataset.
 	- lorentzian: Fit a Lorentzian/Cauchy kernel density estimation to the data ensemble.
@@ -33,6 +34,7 @@ Example Usage:
 
 	# Optimization
 	>>> solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
+	>>> local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # local minimization
 	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
 	>>> kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples) # Lorentzian KDE
 
@@ -42,10 +44,11 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.4.4"
+__version__ = "1.4.6"
 
 # import core components
 from .quasar_optimization import optimize as quasar
+from .quasar_helpers import minimize
 from . import quasar_helpers
 
 ### optional imports
@@ -58,9 +61,9 @@ except ImportError:
 
 # sensitivity analysis, lorentzian KDE, data analysis, isotropization
 try:
-    from .sens_analysis import sensitivity, lorentzian, analyze, isotropize, deisotropize, pareto
+    from .sens_analysis import sensitivity, lorentzian, analyze, isotropize, deisotropize
 except ImportError:
-    sensitivity = lorentzian = analyze = isotropize = deisotropize = pareto = None
+    sensitivity = lorentzian = analyze = isotropize = deisotropize = None
 
 # waveform analysis
 try:
@@ -79,5 +82,5 @@ except ImportError:
 __all__ = [
     'quasar', 'hyperellipsoid', 'sensitivity', 'analyze'
     'lorentzian', 'isotropize', 'deisotropize', 'waveform', 'sobol',
-    'test_functions', 'quasar_helpers', 'waveform_analysis', 'pareto'
+    'test_functions', 'quasar_helpers', 'waveform_analysis'
 ]

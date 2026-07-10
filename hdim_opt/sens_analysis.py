@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import stats
-epsilon = 1e-12
+epsilon = np.finfo(float).tiny
 
 ### sensitivity analysis
 try:

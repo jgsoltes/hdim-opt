@@ -1,6 +1,6 @@
 # global imports
 import numpy as np
-epsilon = 1e-16
+epsilon = np.finfo(float).tiny
     
 ############## CONSTRAINTS ##############
 def apply_penalty(fitnesses, solutions, constraints, constraint_penalty, vectorized):
@@ -65,12 +65,77 @@ def apply_penalty(fitnesses, solutions, constraints, constraint_penalty, vectori
 
 ############## POLISHING ##############
 
+### minimization wrapper
+def minimize(func, bounds, 
+             method='L-BFGS-B', init=None,
+             constraints=None, tolerance=None,
+             verbose=True, **kwargs):
+    '''
+    Objective:
+        - Minimize the given function within the parameter bounds.
+        - Effectively a wrapper for scipy.optimize.minimize.
+    Inputs:
+        - func: Objective function to minimize.
+        - bounds: Parameter space bounds.
+        - method: Solver; defaults to L-BFGS-B.
+            - All scipy options are available that do not explicitly require a Jacobian.
+        - x0: Initial guess.
+        - constraints: Constraints, in scipy's input shape.
+        - kwargs: Keyword arguments for scipy's minimize function.
+    Outputs:
+        - solution: Best solution found.
+        - fitness: Objective function value.
+    '''
+    
+    # import
+    from scipy import optimize
+
+    # convert to array
+    bounds = np.array(bounds)
+    
+    # default initial guess to the median of bounds
+    if init is None:
+        init = np.mean(bounds, axis=1)
+
+    # minimize via scipy
+    results = optimize.minimize(func, x0=init, 
+                                method=method, bounds=bounds, 
+                                constraints=constraints, tol=tolerance,
+                                **kwargs)
+    solution, fitness = results.x, results.fun
+
+    # if optimization fails
+    if verbose:
+        print('Results:')
+
+        # print best fitness
+        print(f'- f(x): {fitness:.2e}')
+
+        # print best solution
+        if len(solution)>3:
+            formatted_display = ', '.join([f'{val:.2e}' for val in solution[:3]])
+            print(f'- Solution: [{formatted_display}, ...]')
+        else:
+            formatted_display = ', '.join([f'{val:.2e}' for val in solution])
+            print(f'- Solution: [{formatted_display}]')
+
+        # print number of iterations
+        print(f'- n_iter: {results.nfev}')
+
+        # if minimization does not converge
+        if not results.success:
+            import warnings
+            warnings.warn(f'Optimization failed: {results.message}')
+
+    return solution, fitness
+
+# QUASAR polishing
 def polish_solution(
             func=None, best_solution=None, best_fitness=None, bounds=None, popsize=None, maxiter=None, 
             vectorized=None, constraints=None, args=None, kwargs=None, 
             polish_minimizer=None, verbose=None):
     try:
-        from scipy.optimize import minimize
+        from scipy import optimize
         # handles a single 1D vector input (x) and returns a scalar fitness value.
         def polish_obj_func(x):
             '''Wrapper function to handle vectorized and non-vectorized inputs for SciPy minimize.'''
@@ -129,14 +194,14 @@ def polish_solution(
         else:
             # otherwise default to Powell
             if polish_minimizer is None:
-                polish_minimizer = 'Powell'
+                polish_minimizer = 'L-BFGS-B'
 
         polish_iterations = int(np.minimum(500,np.sqrt(popsize*maxiter)))
 
         # minimize
         if verbose:
             print(f'Polishing solution with {polish_minimizer}.')
-        polish_result = minimize(
+        polish_result = optimize.minimize(
                                 polish_obj_func, best_solution, method = polish_minimizer,
                                 bounds=bounds, options={'maxiter': polish_iterations},
                                 constraints = scipy_constraints if constraints else()
