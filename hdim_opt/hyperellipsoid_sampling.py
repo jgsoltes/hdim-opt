@@ -101,14 +101,13 @@ def sample_hyperellipsoid(n_dimensions, n_samples_in_ellipsoid,
         - Samples unit hyperspheres using Marsaglia polar vectors, scaled by a QMC sequence and the radial scaling factor.
         - Transforms the hyperspherical samples to the ellipsoid axes defined using the dimensional variances.
     '''
+    
     rng = np.random.default_rng(seed)
+    actual_n_samples = len(radius_qmc_sequence)
     
-    # generate unit direction vectors (standard normal)
-    samples = rng.normal(size=(n_samples_in_ellipsoid, n_dimensions))
-    
-    # normalize to unit sphere
-    norms = np.linalg.norm(samples, axis=1, keepdims=True)
-    unit_sphere_samples = samples / (norms + epsilon)
+    # generate hypersphere samples
+    gaussian_samples = rng.standard_normal((actual_n_samples, n_dimensions))
+    unit_sphere_samples = gaussian_samples / np.linalg.norm(gaussian_samples, axis=1, keepdims=True)
     
     # apply QMC radius scaling (r^(1/D)) (maintains uniform density inside the ellipsoid)
     random_radii = np.power(radius_qmc_sequence, (1.0 / n_dimensions))
@@ -400,7 +399,7 @@ def sample(n_samples, bounds,
     # critical value (the statistical radius squared)
     if ellipsoid_scaling_factor == None:
         chi2_critical_value = stats.chi2.ppf(confidence_level, df=n_dimensions)
-        baseline_factor = 0.55 - 0.01*np.log2(n_dimensions) # empirically derived to resample out-of-bounds points # TESTING log2
+        baseline_factor = 0.55 - 0.01*np.log2(n_dimensions) # empirically derived to resample out-of-bounds points
         
         # square root as the scaling factor (Mahalanobis distance)
         ellipsoid_scaling_factor = baseline_factor * np.sqrt(chi2_critical_value)
@@ -411,7 +410,7 @@ def sample(n_samples, bounds,
     radius_start_idx = 0
 
     ### initialize QMC sequences and arguments
-    tasks = []
+    collected_samples = []
     current_idx = radius_start_idx
     for i, params in enumerate(ellipsoid_params):
         n_to_generate = n_samples_per_ellipsoid[i] * 2
@@ -420,21 +419,27 @@ def sample(n_samples, bounds,
         chunk = radius_qmc_sequence_base[current_idx : current_idx + n_to_generate].flatten()
         current_idx += n_to_generate
         
-        # package all arguments needed for the function
+        # package arguments and process immediately
         if n_to_generate > 0 and chunk.size > 0:
             task_seed = seed + i + 1000
-            tasks.append((
-                n_dimensions, n_to_generate, params['origin'], 
-                params['variances'], ellipsoid_scaling_factor, chunk, task_seed, n_samples_per_ellipsoid[i],
-            ))
-
-    collected_samples = []
-    for task in tasks:
-        # generate ellipsoid samples
-        samples = sample_hyperellipsoid(*task[:-1])
-        in_bounds = ((samples >= 0) & (samples <= 1)).all(axis=1) # filter samples
-        valid = samples[in_bounds]
-        collected_samples.append(valid[:task[-1]])
+            
+            # generate ellipsoid samples
+            samples = sample_hyperellipsoid(
+                n_dimensions, 
+                n_to_generate, 
+                params['origin'], 
+                params['variances'], 
+                ellipsoid_scaling_factor, 
+                chunk, 
+                task_seed
+            )
+            
+            # filter samples
+            in_bounds = ((samples >= 0) & (samples <= 1)).all(axis=1) 
+            valid = samples[in_bounds]
+            
+            # append only the exact amount needed for this cluster
+            collected_samples.append(valid[:n_samples_per_ellipsoid[i]])
 
     # filter out empty results and stack
     collected_samples = [s for s in collected_samples if len(s) > 0]
