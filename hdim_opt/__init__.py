@@ -29,6 +29,7 @@ Example Usage:
 
 	# Sampling
 	>>> ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
+	>>> uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform sampling
 	>>> iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
 	>>> h.analyze(ellipsoid_samples) # Analyze any dataset
 
@@ -44,7 +45,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.4.6"
+__version__ = "1.4.7"
 
 # import core components
 from .quasar_optimization import optimize as quasar
@@ -55,7 +56,7 @@ from . import quasar_helpers
 # hyperellipsoid and sobol sequences
 try:
     from .hyperellipsoid_sampling import sample as hyperellipsoid
-    from .hyperellipsoid_sampling import sobol_sample as sobol
+    from .hyperellipsoid_sampling import uniform as uniform
 except ImportError:
     hyperellipsoid = sobol = None
 

@@ -36,6 +36,7 @@ obj_func = h.test_functions.rastrigin # Test function
 
 # Sampling
 ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
+uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform sampling
 iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize dataset
 h.analyze(ellipsoid_samples) # Analyze any dataset
 
