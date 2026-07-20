@@ -585,9 +585,13 @@ try:
         from sklearn.preprocessing import StandardScaler
         from scipy import stats
         import numpy as np
+        import warnings
+        warnings.filterwarnings("ignore", category=FutureWarning) # suppress seaborn warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning) # suppress stats.entropy div0 warnings
     
         ### convert to dataframe
         df = pd.DataFrame(data).select_dtypes(include=[np.number]).dropna(how='any') # drop nulls
+        df = df.loc[:, df.var(ddof=0) > 0] # drop columns with zero variance
         param_names = df.columns
         data_raw = df.values
     
@@ -598,7 +602,7 @@ try:
         else:
             data = data_raw
     
-         # scaled data for PCA
+        # scaled data for PCA
         scaler = StandardScaler()
         data_scaled = scaler.fit_transform(data)
     
@@ -814,7 +818,7 @@ try:
                 annot_matrix.append(row_annot)
                 
             sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
-            ratio_title = 'Ratio (Arcsinh)' if transform else 'Ratio'
+            ratio_title = 'Ratios (Arcsinh)' if transform else 'Ratios'
             ax[1].set_title(ratio_title)
             
             plt.tight_layout()
