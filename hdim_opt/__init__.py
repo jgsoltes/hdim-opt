@@ -25,12 +25,13 @@ Example Usage:
 	>>> n_samples = 2**10
 	>>> bounds = [(-100,100)] * n_dimensions
 	>>> obj_func = h.test_functions.rastrigin # Test function
+	>>> t, signal = h.waveform_analysis.e1_waveform() # Signal
 
 	### Sampling
 	>>> ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
 	>>> uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform sampling
 	>>> iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
-	>>> kde = h.lorentzian(solution, 150.0, ellipsoid_samples, verbose=True) # KDE
+	>>> kde = h.lorentzian(ellipsoid_samples, 150.0, ellipsoid_samples, verbose=True) # KDE
 
 	### Optimization
 	>>> solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # evolutionary optimization
@@ -39,11 +40,11 @@ Example Usage:
 
 	### Analysis
 	>>> h.analyze(ellipsoid_samples) # Analyze any numerical dataset
-	>>> summary = h.waveform(iso_samples[:,0], iso_samples[:,1]) # Waveform analysis
+	>>> summary = h.waveform(t, signal) # Waveform analysis
 """
 
 # package version
-__version__ = "1.4.8"
+__version__ = "1.4.81"
 
 # import core components
 from .quasar_optimization import optimize as quasar

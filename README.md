@@ -38,12 +38,13 @@ n_dimensions = 10
 n_samples = 2**10
 bounds = [(-100,100)] * n_dimensions
 obj_func = h.test_functions.rastrigin # Test function
+t, signal = h.waveform_analysis.e1_waveform() # Signal
 
 ### Sampling
 ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
 uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform sampling
 iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
-kde = h.lorentzian(solution, 150.0, ellipsoid_samples, verbose=True) # KDE
+kde = h.lorentzian(ellipsoid_samples, 150.0, ellipsoid_samples, verbose=True) # KDE
 
 ### Optimization
 solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # evolutionary optimization
@@ -52,7 +53,7 @@ Si, S2 = h.sensitivity(obj_func, bounds) # sensitivity analysis
 
 ### Analysis
 h.analyze(ellipsoid_samples) # Analyze any numerical dataset
-summary = h.waveform(iso_samples[:,0], iso_samples[:,1]) # Waveform analysis
+summary = h.waveform(t, signal) # Waveform analysis
 ```
 
 ## QUASAR Optimizer
