@@ -1,18 +1,24 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-Numerical optimization package to accelerate convergence in complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, HDS QMC sampler, Sobol sensitivity analysis, data analysis / transformations, signal waveform decomposition.
+Numerical optimization package for complex, high-dimensional problems. Includes the QUASAR evolutionary algorithm, Hyperellipsoid QMC sampling, and several streamlined functions derived from existing libraries for ease of use.
 
 All core functions, listed below, are single-line executable and require three essential parameters: [obj_function, bounds, n_samples]:
 
-* **quasar**: QUASAR optimization for high-dimensional problems.
-* **hyperellipsoid**: Generate a non-uniform hyperellipsoid density sequence.
-* **uniform**: Generate uniform QMC sample distributions (via Scipy.stats.qmc).
-* **isotropize/deisotropize**: Isotropize the input data using zero-phase component analysis (ZCA).
-
+### Optimization
+* **quasar**: QUASAR optimization.
+* **minimize**: Optimization using gradient-based minimization (via SciPy.minimize).
 * **sensitivity**: Sensitivity analysis to quantify each variable's influence on the objective (via SALib).
-* **analyze**: Numerically analyze any given dataset.
+
+### Sampling
+* **hyperellipsoid**: Generate hyperellipsoidal sample sequence; may accelerate optimization.
+* **uniform**: Generate uniform QMC sample sequences (via Scipy.stats.qmc).
+* **isotropize/deisotropize**: Isotropize the input data using zero-phase component analysis (ZCA).
 * **lorentzian**: Fit a Lorentzian/Cauchy kernel density estimation to the data.
+
+### Analysis
+* **analyze**: Numerically analyze any given dataset.
 * **waveform**: Decompose the input waveform signal array into a diagnostic summary.
+
 
 ## Installation
 
@@ -27,27 +33,26 @@ pip install hdim_opt
 ```python
 import hdim_opt as h
 
-# Parameter Space
-n_dimensions = 30
-n_samples = 1000
+### Parameter Space
+n_dimensions = 10
+n_samples = 2**10
 bounds = [(-100,100)] * n_dimensions
 obj_func = h.test_functions.rastrigin # Test function
 
-# Sampling
+### Sampling
 ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
 uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform sampling
-iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize dataset
-h.analyze(ellipsoid_samples) # Analyze any dataset
+iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
+kde = h.lorentzian(solution, 150.0, ellipsoid_samples, verbose=True) # KDE
 
-# Optimization
-solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
-local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # Local minimization
-Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
-kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples, verbose=True) # Lorentzian KDE
+### Optimization
+solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # evolutionary optimization
+local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # evolutionary optimization
+Si, S2 = h.sensitivity(obj_func, bounds) # sensitivity analysis
 
-# Waveforms
-t, signal = h.waveform_analysis.e1_waveform(noise=0.1) # Waveform generation
-summary = h.waveform(t,signal) # Waveform analysis
+### Analysis
+h.analyze(ellipsoid_samples) # Analyze any numerical dataset
+summary = h.waveform(iso_samples[:,0], iso_samples[:,1]) # Waveform analysis
 ```
 
 ## QUASAR Optimizer
@@ -56,6 +61,6 @@ summary = h.waveform(t,signal) # Waveform analysis
 * Benefit: Significant improvements in convergence speed and solution quality compared to contemporary optimizers. (Reference: [https://arxiv.org/abs/2511.13843]).
 
 ## HDS Sampler
-**HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the search space.
+**HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the parameter space.
 
-* Benefit: Provides control over the sample distribution. Results in higher average optimization solution quality when used for population initialization compared to uniform QMC methods. (Reference: [https://arxiv.org/abs/2511.07836]).
+* Benefit: Provides control over high-dimensional sample distributions. Results in higher average solution quality when initializing optimization. (Reference: [https://arxiv.org/abs/2511.07836]).

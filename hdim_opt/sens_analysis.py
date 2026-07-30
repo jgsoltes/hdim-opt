@@ -589,9 +589,17 @@ try:
         warnings.filterwarnings("ignore", category=FutureWarning) # suppress seaborn warnings
         warnings.filterwarnings("ignore", category=RuntimeWarning) # suppress stats.entropy div0 warnings
     
-        ### convert to dataframe
-        df = pd.DataFrame(data).select_dtypes(include=[np.number]).dropna(how='any') # drop nulls
-        df = df.loc[:, df.var(ddof=0) > 0] # drop columns with zero variance
+        ### clean dataframe
+        df = pd.DataFrame(data)
+    
+        # attempt to convert non-numeric to numeric
+        obj_cols = df.select_dtypes(exclude=[np.number]).columns
+        if not obj_cols.empty:
+            df[obj_cols] = df[obj_cols].apply(pd.to_numeric, errors='ignore')
+        
+        # select numeric & non-null cols
+        df = df.select_dtypes(include=[np.number]).dropna(how='any')
+        df = df.loc[:, df.var(ddof=0) > 0] # drop cols with zero variance
         param_names = df.columns
         data_raw = df.values
     
@@ -743,28 +751,34 @@ try:
         except Exception as e:
             print(f'Bypassing metrics ({e})')
     
+        
         ### plot
-        fig, ax = plt.subplots(1,2,figsize=(11,5.5))
+        fig, ax = plt.subplots(1,2,figsize=(12,5.5))
     
-        # scatter
+        # scatter plot
         ax[0].scatter(x=x,y=y,s=1)
         ax[0].set_xlabel('Axis 1')
         ax[0].set_ylabel('Axis 2')
-        ax[0].set_title('Principal Components')
+        ax[0].set_title('Comparison')
+        
+        # density plot
+        user_color = sns.color_palette()[0]
+        bg_color = plt.rcParams['axes.facecolor'] 
+        text_color = plt.rcParams['text.color']
     
-        # 2-d
-        sns.kdeplot(x=x,alpha=0.75,label='Axis 1', ax=ax[1], common_norm=False)
-        sns.kdeplot(x=y,alpha=0.75,label='Axis 2', ax=ax[1], common_norm=False)
-        ax[1].set_title('Principal Components')
-        ax[1].set_xlabel('')
-        ax[1].set_ylabel('')
-        ax[1].legend()
+        # colormap dark mode: black -> color -> white | light mode: white -> color -> black
+        dynamic_cmap = sns.blend_palette([bg_color, user_color, text_color], as_cmap=True)
+        sns.kdeplot(x=x, y=y, fill=True, cmap=dynamic_cmap, ax=ax[1], levels=33, thresh=0.03)
+        ax[1].set_title('Density')
+        ax[1].set_xlabel('Axis 1')
+        ax[1].set_ylabel('Axis 2')
         
         plt.tight_layout()
         plt.show()
+    
         
         
-        ### comparisons
+        ### correlations and ratios
         # correlation matrix
         df_transformed = pd.DataFrame(data, columns=param_names)
         corr_df = df_transformed.corr()
@@ -777,35 +791,72 @@ try:
         else:
             corr_plot_data = corr_df
         corr_plot_data = corr_plot_data.rename(index=lambda x: str(x)[:15], columns=lambda x: str(x)[:10])
-        
-        # relative ratios
+            
+        ## correlations, etc
         if n_dim > 2:
-            top_params = loadings.iloc[:-1].head(15).index.tolist()
+            top_params = loadings.iloc[:-1].head(10).index.tolist()
             df_top = df_transformed[top_params]
             n_top = len(top_params)
             means = df_top.mean().values # top means
             ratio_matrix = means[:, None] / means[None, :] # ratios
             
-            # wilcoxon p-values
-            p_matrix = np.zeros((n_top, n_top))
+            # rank-sum test
+            top_vals = df_top.values
+            n_top = len(top_params)
+            p_matrix = np.ones((n_top, n_top))
+            
+            # upper triangle loop since p vals are symmetric
             for i in range(n_top):
-                for j in range(n_top):
-                    if i == j:
-                        p_matrix[i, j] = 1.0
-                    else:
-                        _, p = stats.ttest_rel(df_top.iloc[:, i], df_top.iloc[:, j])
-                        p_matrix[i, j] = p
+                for j in range(i + 1, n_top):
+                    
+                    # rank sum test
+                    try:
+                        _, p = stats.mannwhitneyu(top_vals[:, i], top_vals[:, j])
+                    except ValueError:
+                        # edge cases where all numbers are identical
+                        p = 1.0 
+                    
+                    # assign symmetrically ( p(1,2) = p(2,1) )
+                    p_matrix[i, j] = p
+                    p_matrix[j, i] = p
         
             # create ratio dataframe
             ratio_df = pd.DataFrame(ratio_matrix, index=top_params, columns=top_params)
-            
-            ### plot comparisons
-            fig, ax = plt.subplots(1,2,figsize=(11.5,5))
+    
+    
+        ### plot feature distributions
+        fig, ax = plt.subplots(1,2,figsize=(12,5.5))
+        if n_dim > 2:
+            sns.boxplot(data=df_top, ax=ax[0])
+        else:
+            sns.boxplot(data=df_transformed, ax=ax[0])
+    
+        boxplot_title = 'Feature Distributions (Arcsinh)' if transform else 'Feature Distributions'
+        value_label = 'Value (Arcsinh)' if transform else 'Value'
+        ax[0].set_title(boxplot_title)
+        ax[0].set_ylabel(value_label)
+    
+        # plot overlaid feature KDE densities
+        if n_dim > 2:
+            sns.kdeplot(data=df_top, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
+        else:
+            sns.kdeplot(data=df_transformed, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
+        feat_density_title = 'Feature Densities (Arcsinh)' if transform else 'Feature Densities'
+        ax[1].set_title(feat_density_title)
+        ax[1].set_xlabel(value_label)
+        ax[1].set_ylabel('')
+        
+        plt.tight_layout()
+        plt.show()
+    
+        ### plot correlations and ratios
+        if n_dim > 2:
+            fig, ax = plt.subplots(1,2,figsize=(12,5))
             
             # correlations
             sns.heatmap(corr_plot_data, ax=ax[0], center=0)
             ax[0].set_title('Correlations')
-        
+            
             # ratios
             annot_matrix = []
             for i in range(len(top_params)):

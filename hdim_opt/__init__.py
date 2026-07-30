@@ -17,35 +17,33 @@ Modules:
 	- waveform_analysis: Contains pulse signal decompositions.
 
 Example Usage:
-
-	# Import
+	### Import
 	>>> import hdim_opt as h
 
-	# Parameter Space
-	>>> n_dimensions = 30
-	>>> n_samples = 1000
+	### Parameter Space
+	>>> n_dimensions = 10
+	>>> n_samples = 2**10
 	>>> bounds = [(-100,100)] * n_dimensions
 	>>> obj_func = h.test_functions.rastrigin # Test function
 
-	# Sampling
+	### Sampling
 	>>> ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
 	>>> uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform sampling
 	>>> iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data
-	>>> h.analyze(ellipsoid_samples) # Analyze any dataset
+	>>> kde = h.lorentzian(solution, 150.0, ellipsoid_samples, verbose=True) # KDE
 
-	# Optimization
-	>>> solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
-	>>> local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # local minimization
-	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
-	>>> kde = h.lorentzian(solution, sigma=150.0, ensemble=ellipsoid_samples) # Lorentzian KDE
+	### Optimization
+	>>> solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # evolutionary optimization
+	>>> local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # evolutionary optimization
+	>>> Si, S2 = h.sensitivity(obj_func, bounds) # sensitivity analysis
 
-	# Waveforms
-	>>> t, signal = h.waveform_analysis.e1_waveform(noise=0.1) # Waveform generation
-	>>> summary = h.waveform(t,signal) # Waveform analysis
+	### Analysis
+	>>> h.analyze(ellipsoid_samples) # Analyze any numerical dataset
+	>>> summary = h.waveform(iso_samples[:,0], iso_samples[:,1]) # Waveform analysis
 """
 
 # package version
-__version__ = "1.4.72"
+__version__ = "1.4.8"
 
 # import core components
 from .quasar_optimization import optimize as quasar
