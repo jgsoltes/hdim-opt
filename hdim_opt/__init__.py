@@ -14,7 +14,7 @@ Functions:
 	- symbolic: Symbolic regression to approximate the input data or function (via gplearn).
 
 	Analysis:
-	- sensitivity: Sensitivity analysis to quantify each dimension's influence on the objective (via SALib).
+	- sensitivity: Sensitivity analysis to quantify each dimension's influence (via SALib).
 	- hyperslice: Generate a hyperslice of a function's underlying solution space.
 	- waveform: Decompose a 2D input signal, assuming time- or frequency-domain.
 	- analyze: Numerically analyze any given dataset.
@@ -51,7 +51,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 
 # import core components
 from .quasar_optimization import optimize as quasar

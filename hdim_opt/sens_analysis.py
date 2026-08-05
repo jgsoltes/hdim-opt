@@ -770,199 +770,208 @@ try:
     
         
         ### plot
-        fig, ax = plt.subplots(1,2,figsize=(12,5.5))
-    
-        # scatter plot
-        ax[0].scatter(x=x,y=y,s=1)
-        ax[0].set_xlabel('Axis 1')
-        ax[0].set_ylabel('Axis 2')
-        ax[0].set_title('Comparison')
+        try:
+            fig, ax = plt.subplots(1,2,figsize=(12,5.5))
         
-        # density plot
-        user_color = sns.color_palette()[0]
-        bg_color = plt.rcParams['axes.facecolor'] 
-        text_color = plt.rcParams['text.color']
-    
-        # colormap dark mode: black -> color -> white | light mode: white -> color -> black
-        dynamic_cmap = sns.blend_palette([bg_color, user_color, text_color], as_cmap=True)
-        sns.kdeplot(x=x, y=y, fill=True, cmap=dynamic_cmap, ax=ax[1], levels=33, thresh=0.03)
-        ax[1].set_title('Density')
-        ax[1].set_xlabel('Axis 1')
-        ax[1].set_ylabel('Axis 2')
+            # scatter plot
+            ax[0].scatter(x=x,y=y,s=1)
+            ax[0].set_xlabel('Axis 1')
+            ax[0].set_ylabel('Axis 2')
+            ax[0].set_title('Comparison')
+            
+            # density plot
+            user_color = sns.color_palette()[0]
+            bg_color = plt.rcParams['axes.facecolor'] 
+            text_color = plt.rcParams['text.color']
         
-        plt.tight_layout()
-        plt.show()
+            # colormap dark mode: black -> color -> white | light mode: white -> color -> black
+            dynamic_cmap = sns.blend_palette([bg_color, user_color, text_color], as_cmap=True)
+            sns.kdeplot(x=x, y=y, fill=True, cmap=dynamic_cmap, ax=ax[1], thresh=0.03)
+            ax[1].set_title('Density')
+            ax[1].set_xlabel('Axis 1')
+            ax[1].set_ylabel('Axis 2')
+            
+            plt.tight_layout()
+            plt.show()
+        except:
+            print(f'Skipped plot: {e}')
     
         
         ### correlations and ratios
         # correlation matrix
         df_transformed = pd.DataFrame(data, columns=param_names)
         corr_df = df_transformed.corr()
-        
-        # filter to top 10 correlations dimension
-        if df.shape[1] > 10:
-            overall_corr = corr_df.abs().mean().sort_values(ascending=False)
-            top_vars = overall_corr.head(10).index
-            corr_plot_data = corr_df.loc[top_vars, top_vars]
-        else:
-            corr_plot_data = corr_df
-        corr_plot_data = corr_plot_data.rename(index=lambda x: str(x)[:15], columns=lambda x: str(x)[:10])
-            
-        ## correlations, etc
-        if n_dim > 2:
-            top_params = loadings.iloc[:-1].head(10).index.tolist()
-            df_top = df_transformed[top_params]
-            n_top = len(top_params)
-            means = df_top.mean().values # top means
-            ratio_matrix = means[:, None] / means[None, :] # ratios
-            
-            # rank-sum test
-            top_vals = df_top.values
-            n_top = len(top_params)
-            p_matrix = np.ones((n_top, n_top))
-            
-            # upper triangle loop since p vals are symmetric
-            for i in range(n_top):
-                for j in range(i + 1, n_top):
-                    
-                    # rank sum test
-                    try:
-                        _, p = stats.mannwhitneyu(top_vals[:, i], top_vals[:, j])
-                    except ValueError:
-                        # edge cases where all numbers are identical
-                        p = 1.0 
-                    
-                    # assign symmetrically ( p(1,2) = p(2,1) )
-                    p_matrix[i, j] = p
-                    p_matrix[j, i] = p
-        
-            # create ratio dataframe
-            ratio_df = pd.DataFrame(ratio_matrix, index=top_params, columns=top_params)
-    
-    
-        ### plot feature distributions
-        fig, ax = plt.subplots(1,2,figsize=(12,5.5))
-        if n_dim > 2:
-            sns.boxplot(data=df_top, ax=ax[0])
-        else:
-            sns.boxplot(data=df_transformed, ax=ax[0])
-    
-        boxplot_title = 'Feature Distributions (Arcsinh)' if transform else 'Feature Distributions'
-        value_label = 'Value (Arcsinh)' if transform else 'Value'
-        ax[0].set_title(boxplot_title)
-        ax[0].set_ylabel(value_label)
-    
-        # plot overlaid feature KDE densities
-        if n_dim > 2:
-            sns.kdeplot(data=df_top, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
-        else:
-            sns.kdeplot(data=df_transformed, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
-        feat_density_title = 'Feature Densities (Arcsinh)' if transform else 'Feature Densities'
-        ax[1].set_title(feat_density_title)
-        ax[1].set_xlabel(value_label)
-        ax[1].set_ylabel('')
-        
-        plt.tight_layout()
-        plt.show()
-    
-        ### plot correlations and ratios
-        if n_dim > 2:
-            fig, ax = plt.subplots(1,2,figsize=(12,5))
-            
-            # correlations
-            sns.heatmap(corr_plot_data, ax=ax[0], center=0)
-            ax[0].set_title('Correlations')
-            
-            # ratios
-            annot_matrix = []
-            for i in range(len(top_params)):
-                row_annot = []
-                for j in range(len(top_params)):
-                    r = ratio_matrix[i, j]
-                    p = p_matrix[i, j]
-                    star = '*' if p < 0.05 else ''
-                    row_annot.append(f'{star}')
-                annot_matrix.append(row_annot)
+
+        try:
+            # filter to top 10 correlations dimension
+            if df.shape[1] > 10:
+                overall_corr = corr_df.abs().mean().sort_values(ascending=False)
+                top_vars = overall_corr.head(10).index
+                corr_plot_data = corr_df.loc[top_vars, top_vars]
+            else:
+                corr_plot_data = corr_df
+            corr_plot_data = corr_plot_data.rename(index=lambda x: str(x)[:15], columns=lambda x: str(x)[:10])
                 
-            sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
-            ratio_title = 'Ratios (Arcsinh)' if transform else 'Ratios'
-            ax[1].set_title(ratio_title)
+            ## correlations, etc
+            if n_dim > 2:
+                top_params = loadings.iloc[:-1].head(10).index.tolist()
+                df_top = df_transformed[top_params]
+                n_top = len(top_params)
+                means = df_top.mean().values # top means
+                ratio_matrix = means[:, None] / means[None, :] # ratios
+                
+                # rank-sum test
+                top_vals = df_top.values
+                n_top = len(top_params)
+                p_matrix = np.ones((n_top, n_top))
+                
+                # upper triangle loop since p vals are symmetric
+                for i in range(n_top):
+                    for j in range(i + 1, n_top):
+                        
+                        # rank sum test
+                        try:
+                            _, p = stats.mannwhitneyu(top_vals[:, i], top_vals[:, j])
+                        except ValueError:
+                            # edge cases where all numbers are identical
+                            p = 1.0 
+                        
+                        # assign symmetrically ( p(1,2) = p(2,1) )
+                        p_matrix[i, j] = p
+                        p_matrix[j, i] = p
+            
+                # create ratio dataframe
+                ratio_df = pd.DataFrame(ratio_matrix, index=top_params, columns=top_params)
+        
+        
+            ### plot feature distributions
+            fig, ax = plt.subplots(1,2,figsize=(12,5.5))
+            if n_dim > 2:
+                sns.boxplot(data=df_top, ax=ax[0])
+            else:
+                sns.boxplot(data=df_transformed, ax=ax[0])
+        
+            boxplot_title = 'Feature Distributions (Arcsinh)' if transform else 'Feature Distributions'
+            value_label = 'Value (Arcsinh)' if transform else 'Value'
+            ax[0].set_title(boxplot_title)
+            ax[0].set_ylabel(value_label)
+        
+            # plot overlaid feature KDE densities
+            if n_dim > 2:
+                sns.kdeplot(data=df_top, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
+            else:
+                sns.kdeplot(data=df_transformed, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
+            feat_density_title = 'Feature Densities (Arcsinh)' if transform else 'Feature Densities'
+            ax[1].set_title(feat_density_title)
+            ax[1].set_xlabel(value_label)
+            ax[1].set_ylabel('')
             
             plt.tight_layout()
             plt.show()
-    
-    
-        ### plot parallel dimensions
-        n_keep = 5
-        variances = np.var(data, axis=0)
-        top_var_indices = np.argsort(variances)[-n_keep:][::-1]
         
-        var_data = data[:, top_var_indices]
-        var_labels = param_names[top_var_indices]
-        
-        # pre-calculated PCA data
-        pca_data = data_reduced
-        n_components = 2
-        pca_labels = [f'PC {i+1}' for i in range(n_components)]
-        
-        ### normalize data
-        def normalize_for_plot(matrix):
-            c_min = np.min(matrix, axis=0)
-            c_max = np.max(matrix, axis=0)
-            c_range = np.where(c_max > c_min, c_max - c_min, 1.0)
-            return (matrix - c_min) / c_range
-        norm_var_data = normalize_for_plot(var_data)
-        norm_pca_data = normalize_for_plot(pca_data)
+            ### plot correlations and ratios
+            if n_dim > 2:
+                fig, ax = plt.subplots(1,2,figsize=(12,5))
+                
+                # correlations
+                sns.heatmap(corr_plot_data, ax=ax[0], center=0)
+                ax[0].set_title('Correlations')
+                
+                # ratios
+                annot_matrix = []
+                for i in range(len(top_params)):
+                    row_annot = []
+                    for j in range(len(top_params)):
+                        r = ratio_matrix[i, j]
+                        p = p_matrix[i, j]
+                        star = '*' if p < 0.05 else ''
+                        row_annot.append(f'{star}')
+                    annot_matrix.append(row_annot)
+                    
+                sns.heatmap(ratio_df, annot=annot_matrix, fmt='', center=1, ax=ax[1], cbar_kws={'label': '[ * = p < 0.05 ]'})
+                ratio_title = 'Ratios (Arcsinh)' if transform else 'Ratios'
+                ax[1].set_title(ratio_title)
+                
+                plt.tight_layout()
+                plt.show()
+        except Exception as e:
+            print(f'Skipped plot: {e}')
     
-        ### plot
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-        x_coords_var = np.arange(n_keep)
-        x_coords_pca = np.arange(n_components)
+
+        try:
+            ### plot parallel dimensions
+            n_keep = 5
+            variances = np.var(data, axis=0)
+            top_var_indices = np.argsort(variances)[-n_keep:][::-1]
+            
+            var_data = data[:, top_var_indices]
+            var_labels = param_names[top_var_indices]
+            
+            # pre-calculated PCA data
+            pca_data = data_reduced
+            n_components = 2
+            pca_labels = [f'PC {i+1}' for i in range(n_components)]
+            
+            ### normalize data
+            def normalize_for_plot(matrix):
+                c_min = np.min(matrix, axis=0)
+                c_max = np.max(matrix, axis=0)
+                c_range = np.where(c_max > c_min, c_max - c_min, 1.0)
+                return (matrix - c_min) / c_range
+            norm_var_data = normalize_for_plot(var_data)
+            norm_pca_data = normalize_for_plot(pca_data)
         
-        # tie dimensions to their corresponding principal component
-        colors = plt.cm.plasma(norm_pca_data[:, 0])
-    
-        # render via LineCollection
-        var_segments = np.zeros((data.shape[0], n_keep, 2))
-        var_segments[:, :, 0] = x_coords_var
-        var_segments[:, :, 1] = norm_var_data
-        pca_segments = np.zeros((data.shape[0], n_components, 2))
-        pca_segments[:, :, 0] = x_coords_pca
-        pca_segments[:, :, 1] = norm_pca_data
-        var_lc = LineCollection(var_segments, colors=colors, alpha=0.5, linewidths=1.5)
-        pca_lc = LineCollection(pca_segments, colors=colors, alpha=0.5, linewidths=1.5)
-        ax1.add_collection(var_lc)
-        ax2.add_collection(pca_lc)
-    
-        # initialize scatter plot
-        x_flat_var = np.tile(x_coords_var, data.shape[0])
-        color_flat_var = np.repeat(colors, n_keep, axis=0)
-        ax1.scatter(x_flat_var, norm_var_data.flatten(), color=color_flat_var, alpha=0.5, s=3.33, zorder=3)
-    
-        x_flat_pca = np.tile(x_coords_pca, data.shape[0])
-        color_flat_pca = np.repeat(colors, n_components, axis=0)
-        ax2.scatter(x_flat_pca, norm_pca_data.flatten(), color=color_flat_pca, alpha=0.5, s=3.33, zorder=3)
-    
-        # plot top variance dimensions
-        ax1.set_xlim(x_coords_var[0], x_coords_var[-1])
-        ax1.set_ylim(-0.05, 1.05)
-        ax1.set_xticks(x_coords_var)
-        ax1.set_xticklabels(var_labels, rotation=45)
-        ax1.set_ylabel('Normalized Value')
-        ax1.set_title(f'Top Dimensions by Variance')
-        ax1.grid(True, axis='x', linestyle='--', alpha=0.7)
+            ### plot
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+            x_coords_var = np.arange(n_keep)
+            x_coords_pca = np.arange(n_components)
+            
+            # tie dimensions to their corresponding principal component
+            colors = plt.cm.plasma(norm_pca_data[:, 0])
         
-        # plot PCA
-        ax2.set_xlim(x_coords_pca[0], x_coords_pca[-1])
-        ax2.set_ylim(-0.05, 1.05)
-        ax2.set_xticks(x_coords_pca)
-        ax2.set_xticklabels(pca_labels, rotation=45)
-        ax2.set_title(f'Principal Components')
-        ax2.grid(True, axis='x', linestyle='--', alpha=0.7)
-        ax2.set_yticks([])
+            # render via LineCollection
+            var_segments = np.zeros((data.shape[0], n_keep, 2))
+            var_segments[:, :, 0] = x_coords_var
+            var_segments[:, :, 1] = norm_var_data
+            pca_segments = np.zeros((data.shape[0], n_components, 2))
+            pca_segments[:, :, 0] = x_coords_pca
+            pca_segments[:, :, 1] = norm_pca_data
+            var_lc = LineCollection(var_segments, colors=colors, alpha=0.5, linewidths=1.5)
+            pca_lc = LineCollection(pca_segments, colors=colors, alpha=0.5, linewidths=1.5)
+            ax1.add_collection(var_lc)
+            ax2.add_collection(pca_lc)
         
-        plt.tight_layout()
-        plt.show()
+            # initialize scatter plot
+            x_flat_var = np.tile(x_coords_var, data.shape[0])
+            color_flat_var = np.repeat(colors, n_keep, axis=0)
+            ax1.scatter(x_flat_var, norm_var_data.flatten(), color=color_flat_var, alpha=0.5, s=3.33, zorder=3)
+        
+            x_flat_pca = np.tile(x_coords_pca, data.shape[0])
+            color_flat_pca = np.repeat(colors, n_components, axis=0)
+            ax2.scatter(x_flat_pca, norm_pca_data.flatten(), color=color_flat_pca, alpha=0.5, s=3.33, zorder=3)
+        
+            # plot top variance dimensions
+            ax1.set_xlim(x_coords_var[0], x_coords_var[-1])
+            ax1.set_ylim(-0.05, 1.05)
+            ax1.set_xticks(x_coords_var)
+            ax1.set_xticklabels(var_labels, rotation=45)
+            ax1.set_ylabel('Normalized Value')
+            ax1.set_title(f'Top Dimensions by Variance')
+            ax1.grid(True, axis='x', linestyle='--', alpha=0.7)
+            
+            # plot PCA
+            ax2.set_xlim(x_coords_pca[0], x_coords_pca[-1])
+            ax2.set_ylim(-0.05, 1.05)
+            ax2.set_xticks(x_coords_pca)
+            ax2.set_xticklabels(pca_labels, rotation=45)
+            ax2.set_title(f'Principal Components')
+            ax2.grid(True, axis='x', linestyle='--', alpha=0.7)
+            ax2.set_yticks([])
+            
+            plt.tight_layout()
+            plt.show()
+        except:
+            print(f'Skipped plot: {e}')
 
 except:
     pass

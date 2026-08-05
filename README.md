@@ -16,9 +16,9 @@ All core functions, listed below, are single-line executable and depend on three
 * **symbolic**: Symbolic regression to approximate the input data or function (via gplearn).
 
 ### Analysis
-* **sensitivity**: Sensitivity analysis to quantify each dimension's influence on the objective (via SALib).
+* **sensitivity**: Sensitivity analysis to quantify each dimension's influence (via SALib).
 * **hyperslice**: Generate a 1D or 2D hyperslice of a function's underlying solution space.
-* **waveform**: Decompose the input signal waveform.
+* **waveform**: Decompose an input signal waveform.
 * **analyze**: Numerically analyze any given dataset.
 
 
