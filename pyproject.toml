@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.4.81" # match version in __init__.py
-description = "Numerical optimization and quasi-Monte Carlo sampling toolkit for high-dimensional problems."
+version = "1.5.0" # match version in __init__.py
+description = "Numerical optimization, sampling, and analysis toolkit for high-dimensional problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
 authors = [
@@ -17,25 +17,50 @@ authors = [
 license = { text = "MIT" }
 requires-python = ">=3.8"
 keywords = [
-    "optimization", 
+    # general
+    "python3",
+    "machine-learning",
+    "data-science",
+    "scientific-computing",
+
+    # optimization
+    "optimization",
     "high-dimensional",
-    "sampling",
-    "QUASAR", 
-    "hyperellipsoid",
-    "quasi-monte carlo",
-    "evolutionary-algorithm",
-    "non-differentiable",
     "global-optimization",
-    "stochastic-optimization",
+    "local-optimization",
     "black-box-optimization",
-    "quasi-adaptive",
     "derivative-free",
-    "hyperparameter-optimization",
-    "signal decomposition",
-    "scipy-optimize",
+    "evolutionary-algorithm",
+    "QUASAR",
     "metaheuristics",
-    "simulations"
+    "non-differentiable",
+    "scipy-optimize",
+
+    # sampling
+    "sampling",
+    "quasi-monte-carlo",
+    "sobol-sequence",
+    "hyperellipsoid",
+    "kernel-density-estimation",
+    "lorentzian-kde",
+    "density-estimation",
+    "zero-phase",
+
+
+    # analysis (data & parameter space)
+    "sensitivity-analysis",
+    "sobol-indices",
+    "hyperslices",
+    "manifold-learning",
+    "entropy",
+    "data-analysis",
+    "parameter-space-exploration",
+    "signal-decomposition",
+    "symbolic-regression",
+    "genetic-programming",
+    "gplearn"
 ]
+
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
@@ -72,6 +97,13 @@ sensitivity = [
 ]
 
 lorentzian = ["numba"]
+
+symbolic = [
+    # required by symbolic regression `pip install hdim_opt[symbolic]`
+    "gplearn",
+    "scikit-learn",
+    "pandas",
+]
 
 [project.urls]
 Homepage = "https://github.com/jgsoltes/hdim-opt"
