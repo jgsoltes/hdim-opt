@@ -207,159 +207,173 @@ def deisotropize(data_iso, params):
     data_original = (data_centered * params['stdev']) + params['mean']
     return data_original
 
-### pareto front
-def pareto(func, bounds, targets=(), 
-                 n_points=11, maxiter=33,
-                 vectorized=False, seed=None,
-                 log_scale=False, verbose=True):
-    '''
-    Objective:
-        - Generates a Pareto front of optimization results.
-        - Analyzes the cost trade-off between two objectives in a multi-objective cost function.
-    Inputs:
-        - func: Objective function to minimize.
-        - bounds: Parameter bounds to search.
-        - targets: Target variable names to analyze in the objective function (list of strings, match the variable names in func).
-        
-        - n_points: Number of points to generate.
-        - maxiter: Number of iterations for the QUASAR optimization.
-        - vectorized: Boolean for vectorized (matrix-level) objective functions.
-        - seed: Random seed for reproducibility.
-        
-        - log_scale: Plot with log-scaled axes.
-        - verbose: Boolean to display outputs.
-    Outputs:
-        - pareto_df: Dataframe of results from the evolutionary trials.
 
-    Example Usage:
-        >>> def obj_func(x, w1, w2):
-        >>>    f1 = np.sum(x**2)
-        >>>    f2 = np.sum((x - 5)**2)
-        >>> return (w1*f1) + (w2*f2)
-        >>> results = pareto(obj_func, bounds, ['w1','w2'])
-    '''
-    ### imports
-    try:
+### hyperslice of function
+try:
+    def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None, verbose=True):
+        '''
+        Objective:
+            - Generates an optimized hyperslice (0D to ND) of the objective's underlying solution manifold.
+                - Uniformly samples the parameter space as a Sobol sequence.
+                - Holds specified dimensions constant, locally optimizes all others at each Sobol grid coordinate.
+    
+        Inputs:
+            - func: Objective function to slice.
+            - bounds: Parameter bounds to evaluate.
+            - slice_dims: Indices for the dimensions being held constant ([] for 0D, [0, 1, ...N] for N dimensions).
+            - n_samples: Number of samples to distribute (preferred powers of 2).
+            - tol: Objective value tolerance threshold for the local minimization.
+            - seed: Random seed for reproducibility.
+        
+        Outputs:
+            - slice_data: Hyperslice solution array.
+            - slice_stats: Hyperslice statistics.
+        '''
+    
         import numpy as np
-        import inspect
-        import functools
         import pandas as pd
-        try:
-            from quasar_optimization import optimize as quasar
-        except:
-            from .quasar_optimization import optimize as quasar
-    except:
-        raise ImportError('Failed to import a required package: pandas, inspect, functools, quasar_optimization.')
-    np.random.seed(seed)
-
-    # get variable names from objective function input
-    sig = inspect.signature(func)
-
-    # generate weight samples
-    w1_vals = np.linspace(1.0, 0.0, n_points)
-    w2_vals = 1.0 - w1_vals
+        import matplotlib.pyplot as plt
+        from scipy.stats import qmc
+        from scipy.optimize import minimize
+        import matplotlib.tri as tri
+        from sklearn.decomposition import PCA
+        import time
     
-    # converting None input
-    if targets==None:
-        targets = []
-
-    # iterate through n_points to generate QUASAR results
-    print('Generating Pareto front:')
-    pareto_results = []
-    for i in range(n_points):
-        w1, w2 = w1_vals[i], w2_vals[i]
-
-        # if targets are given
-        if len(targets) > 1:
-            weight_map = {targets[0]: w1, targets[1]: w2}
+        ### extract parameters
+        n_samples = int(n_samples)
+        n_dims = len(bounds)
+        slice_dims = list(slice_dims) # convert input tuple to list
     
-            @functools.wraps(func)
-            def weighted_func(x, *args, **kwargs):
-                for key, w in weight_map.items():
-                    kwargs[key] = w
-                return func(x, *args, **kwargs)
-        else: # if empty target list, assume single-objective
-            weighted_func = func
-
-        # QUASAR optimization
-        res_sol, res_fit = quasar(
-            func=weighted_func, 
-            bounds=bounds, 
-            kwargs={t: 1.0 for t in targets},
-            maxiter=maxiter,
-            seed=seed,
-            vectorized=vectorized,
-            verbose=False
-        )
-
-        if len(targets) > 1:
-            # raw scores
-            if vectorized:
-                # match QUASAR input shape
-                eval_sol = res_sol.reshape(1, -1)
-                f1_raw = func(eval_sol, **{targets[0]: 1.0, targets[1]: 0.0})
-                f2_raw = func(eval_sol, **{targets[0]: 0.0, targets[1]: 1.0})
-                
-                # extract value from result array
-                f1_score = f1_raw[0] if np.ndim(f1_raw) > 0 else f1_raw
-                f2_score = f2_raw[0] if np.ndim(f2_raw) > 0 else f2_raw
-            else:
-                f1_score = func(res_sol, **{targets[0]: 1.0, targets[1]: 0.0})
-                f2_score = func(res_sol, **{targets[0]: 0.0, targets[1]: 1.0})
-            # total fitness
-            total_cost = (f1_score * w1) + (f2_score * w2)
-        
-        else:
-            total_cost = res_fit
-            f1_score = res_fit
-            f2_score = res_fit
-        
-        pareto_results.append({
-            'obj1': f1_score,
-            'obj2': f2_score,
-            'total_cost': total_cost,
-            'w1': w1,
-            'w2': w2
-        })
-        if verbose:
-            print(f'Trial {i+1}/{n_points} | w1: {w1:.2f} | f(x): {total_cost:.2e}')
-
-    # convert to dataframe
-    pareto_df = pd.DataFrame(pareto_results)
-
-    ### plot
-    if verbose:
-        print('\nBest solution found:')
-        print(pareto_df[pareto_df['total_cost'] == pareto_df['total_cost'].min()].head(1))
-        print()
-
-        try:
-            import matplotlib.pyplot as plt
-            import matplotlib.colors as colors
-            import seaborn as sns
-        except:
-            raise ImportError('Failed to import visualization packages: matplotlib, seaborn.')
+        # random seed
+        if seed is None:
+            seed = time.time()
+        seed = int(seed)
+        np.random.seed(seed)
             
-        plt.figure(figsize=(10, 6))
+        hidden_indices = [i for i in range(n_dims) if i not in slice_dims]
+        hidden_bounds = [bounds[i] for i in hidden_indices]
         
-        # scatter of pareto front
-        scatter = sns.scatterplot(data=pareto_df, x='obj1', y='obj2', 
-                                    hue='w1', palette='magma', 
-                                    size='w1', sizes=(20, 100),)
+        ### generate sobol sequence
+        sampler = qmc.Sobol(d=n_dims, scramble=True, seed=seed)
+        master_samples = sampler.random(n=n_samples)
         
-        # connect with small line
-        plt.plot(pareto_df['obj1'], pareto_df['obj2'], color='lightgray', linestyle='--', alpha=0.5, zorder=0)
+        # scale samples to bounds
+        lower_bounds = np.array([b[0] for b in bounds])
+        upper_bounds = np.array([b[1] for b in bounds])
+        scaled_samples = qmc.scale(master_samples, lower_bounds, upper_bounds)
         
-        plt.title('Pareto Front')
-        plt.xlabel('Objective 1 Cost')
-        plt.ylabel('Objective 2 Cost')
-        plt.legend(title='Weight 1')
-        if log_scale:
-            plt.xscale('log')
-            plt.yscale('log')
-        plt.show()
+        # store results
+        Z = np.zeros(n_samples)
+    
+        ### optimize sobol samples
+        optimized_coords = np.zeros((n_samples, n_dims))
+        for i in range(n_samples):
+            current_sample = scaled_samples[i]
+            
+            # all dimensions fixed (essentially the QMC sequence)
+            if len(hidden_indices) == 0:
+                Z[i] = func(current_sample)
+                optimized_coords[i] = current_sample
+                
+            # 0 dimensions fixed
+            elif len(slice_dims) == 0:
+                res = minimize(func, x0=current_sample, bounds=bounds, tol=tol)
+                Z[i] = res.fun if res.success else func(current_sample)
+                optimized_coords[i] = res.x if res.success else current_sample
+                
+            # multiple dimensions fixed
+            else:
+                locked_vis_vars = current_sample[slice_dims]
+                
+                def sub_objective(hidden_vars):
+                    coord = np.zeros(n_dims)
+                    coord[slice_dims] = locked_vis_vars
+                    coord[hidden_indices] = hidden_vars
+                    return func(coord)
+                    
+                starting_seed = current_sample[hidden_indices]
+                res = minimize(sub_objective, x0=starting_seed, bounds=hidden_bounds, tol=tol)
+                
+                Z[i] = res.fun if res.success else sub_objective(starting_seed)
+                
+                # store actual coordinate
+                full_coord = np.zeros(n_dims)
+                full_coord[slice_dims] = locked_vis_vars
+                full_coord[hidden_indices] = res.x if res.success else starting_seed
+                optimized_coords[i] = full_coord
+    
+        ### statistics
+        visible_volume = np.prod([bounds[i][1] - bounds[i][0] for i in slice_dims])
+        dV = visible_volume / n_samples
         
-    return pareto_df
+        Z_pos = Z - np.min(Z) + 1e-16
+        pdf = Z_pos / (np.sum(Z_pos) * dV)
+        
+        h_actual = -np.sum(pdf * np.log(pdf)) * dV
+        h_max = np.log(visible_volume)
+        norm_entropy = h_actual / h_max if h_max != 0 else np.nan
+    
+        slice_stats = {'diff_entropy': h_actual, 'norm_entropy': norm_entropy, 'min_obj': np.min(Z), 'max_obj': np.max(Z), 'stdev_obj': np.std(Z)}
+    
+        if verbose:
+            ### print stats
+            print(f'Hyperslice stats ({len(slice_dims)}D):')
+            print(f'- Entropy: {norm_entropy:.2%}' if not np.isnan(norm_entropy) else '- Entropy: NaN (0D Volume)')
+            print('- Objective Values:')
+            print(f'   - Max: {np.max(Z):.3g}')
+            print(f'   - Min: {np.min(Z):.3g}')
+            print(f'   - Stdev: {np.std(Z):.3g}\n')
+        
+            ### plot
+            plt.figure(figsize=(8, 6))
+            
+            if len(slice_dims) == 1:
+                # sort for smooth 1D plotting
+                X_vis = scaled_samples[:, slice_dims[0]]
+                sort_idx = np.argsort(X_vis)
+                plt.plot(X_vis[sort_idx], Z[sort_idx], color='indigo', linewidth=2)
+                plt.fill_between(X_vis[sort_idx], Z[sort_idx], np.min(Z), color='indigo', alpha=0.1)
+                plt.title('Manifold Hyperslice (1D)')
+                plt.xlabel(f'Dimension {slice_dims[0]}')
+                plt.ylabel('Objective Value')
+                
+            elif len(slice_dims) == 2:
+                # triangulation surface over the Sobol points
+                X_vis = scaled_samples[:, slice_dims[0]]
+                Y_vis = scaled_samples[:, slice_dims[1]]
+                triang = tri.Triangulation(X_vis, Y_vis)
+                contour = plt.tricontourf(triang, Z, levels=30, cmap='inferno')
+                plt.colorbar(contour, label='Objective Value')
+                plt.title('Manifold Hyperslice (2D)')
+                plt.xlabel(f'Dimension {slice_dims[0]}')
+                plt.ylabel(f'Dimension {slice_dims[1]}')
+                
+            else:
+                ### PCA for 3D+
+                data_to_project = optimized_coords
+                
+                pca = PCA(n_components=2)
+                projected = pca.fit_transform(data_to_project)
+                
+                scatter = plt.scatter(projected[:, 0], projected[:, 1], c=Z, cmap='inferno', alpha=0.8, edgecolor='k', s=40)
+                plt.colorbar(scatter, label='Objective Value')
+                
+                title_prefix = fr'{len(slice_dims)}D Hyperslice ({n_dims} Space)'
+                plt.title(f'{title_prefix}')
+                plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)')
+                plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)')
+                
+            plt.show()
+    
+        # store as dataframe
+        data_matrix = np.column_stack((optimized_coords, Z))
+        col_names = [f"x{i}" for i in range(n_dims)] + ['objective']
+        slice_data = pd.DataFrame(data_matrix, columns=col_names)
+        
+        return slice_data, slice_stats
+except:
+    pass
+
 
 ### lorentzian KDE
 try:
@@ -572,6 +586,8 @@ try:
 except:
     pass
 
+
+### analyze dataset
 try:
     def analyze(data, transform=False):
         '''Quick analysis of data matrix.'''
@@ -580,6 +596,7 @@ try:
         import matplotlib.pyplot as plt
         import seaborn as sns
         from sklearn.linear_model import LinearRegression
+        from matplotlib.collections import LineCollection
         from sklearn.metrics import r2_score
         from sklearn.decomposition import PCA
         from sklearn.preprocessing import StandardScaler
@@ -777,7 +794,6 @@ try:
         plt.show()
     
         
-        
         ### correlations and ratios
         # correlation matrix
         df_transformed = pd.DataFrame(data, columns=param_names)
@@ -874,5 +890,270 @@ try:
             
             plt.tight_layout()
             plt.show()
+    
+    
+        ### plot parallel dimensions
+        n_keep = 5
+        variances = np.var(data, axis=0)
+        top_var_indices = np.argsort(variances)[-n_keep:][::-1]
+        
+        var_data = data[:, top_var_indices]
+        var_labels = param_names[top_var_indices]
+        
+        # pre-calculated PCA data
+        pca_data = data_reduced
+        n_components = 2
+        pca_labels = [f'PC {i+1}' for i in range(n_components)]
+        
+        ### normalize data
+        def normalize_for_plot(matrix):
+            c_min = np.min(matrix, axis=0)
+            c_max = np.max(matrix, axis=0)
+            c_range = np.where(c_max > c_min, c_max - c_min, 1.0)
+            return (matrix - c_min) / c_range
+        norm_var_data = normalize_for_plot(var_data)
+        norm_pca_data = normalize_for_plot(pca_data)
+    
+        ### plot
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        x_coords_var = np.arange(n_keep)
+        x_coords_pca = np.arange(n_components)
+        
+        # tie dimensions to their corresponding principal component
+        colors = plt.cm.plasma(norm_pca_data[:, 0])
+    
+        # render via LineCollection
+        var_segments = np.zeros((data.shape[0], n_keep, 2))
+        var_segments[:, :, 0] = x_coords_var
+        var_segments[:, :, 1] = norm_var_data
+        pca_segments = np.zeros((data.shape[0], n_components, 2))
+        pca_segments[:, :, 0] = x_coords_pca
+        pca_segments[:, :, 1] = norm_pca_data
+        var_lc = LineCollection(var_segments, colors=colors, alpha=0.5, linewidths=1.5)
+        pca_lc = LineCollection(pca_segments, colors=colors, alpha=0.5, linewidths=1.5)
+        ax1.add_collection(var_lc)
+        ax2.add_collection(pca_lc)
+    
+        # initialize scatter plot
+        x_flat_var = np.tile(x_coords_var, data.shape[0])
+        color_flat_var = np.repeat(colors, n_keep, axis=0)
+        ax1.scatter(x_flat_var, norm_var_data.flatten(), color=color_flat_var, alpha=0.5, s=3.33, zorder=3)
+    
+        x_flat_pca = np.tile(x_coords_pca, data.shape[0])
+        color_flat_pca = np.repeat(colors, n_components, axis=0)
+        ax2.scatter(x_flat_pca, norm_pca_data.flatten(), color=color_flat_pca, alpha=0.5, s=3.33, zorder=3)
+    
+        # plot top variance dimensions
+        ax1.set_xlim(x_coords_var[0], x_coords_var[-1])
+        ax1.set_ylim(-0.05, 1.05)
+        ax1.set_xticks(x_coords_var)
+        ax1.set_xticklabels(var_labels, rotation=45)
+        ax1.set_ylabel('Normalized Value')
+        ax1.set_title(f'Top Dimensions by Variance')
+        ax1.grid(True, axis='x', linestyle='--', alpha=0.7)
+        
+        # plot PCA
+        ax2.set_xlim(x_coords_pca[0], x_coords_pca[-1])
+        ax2.set_ylim(-0.05, 1.05)
+        ax2.set_xticks(x_coords_pca)
+        ax2.set_xticklabels(pca_labels, rotation=45)
+        ax2.set_title(f'Principal Components')
+        ax2.grid(True, axis='x', linestyle='--', alpha=0.7)
+        ax2.set_yticks([])
+        
+        plt.tight_layout()
+        plt.show()
+
+except:
+    pass
+
+### symbolic regression
+try:
+    def symbolic(X_or_func, y_or_bounds, 
+                            feature_names=None, generations=10, population_size=2**10, tournament_size=None,
+                            parsimony=0.005, init_depth=(2, 3), const_range=(-1, 1), function_set=None,
+                            n_jobs=1, seed=None, verbose=True):
+        '''
+        - Performs symbolic regression (via gplearn) on the input data or function.
+        - If input is a function, the landscape is first estimated by optimizing a uniform (Sobol) sample sequence.
+        - This sequence becomes the data for the model fit.
+        
+        Inputs:
+            - X_or_func: Feature (X) data, or function to estimate.
+            - y_or_bounds: Target (y) data, or bounds to evaluate for function.
+            - feature_names: List of feature names (auto-extracted if X is dataframe).
+            - generations: Number of evolutionary generations.
+            - population_size: Population size.
+            - parsimony: Parsimony coefficient, to penalize longer expressions.
+            - init_depth: Initial expression depth (number of terms).
+            - const_range: Range to explore for constant values.
+            - function_set: List of strings defining gplearn functions to test; i.e., ['add','sub','div']
+                - Default: ('add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'inv')
+            - n_jobs: Number of cores to utilize.
+            - seed = Random seed for reproducibility.
+            - verbose: Display progress and outputs.
+            
+        Outputs:
+            - results_df: DataFrame containing all evaluated programs, refined formulas, and metrics.
+            - best_eq: The top-performing analytical expression.
+        '''
+    
+        import time
+        import numpy as np
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        from scipy.stats import qmc
+        from gplearn.genetic import SymbolicRegressor
+        from gplearn.functions import make_function
+        from sklearn.metrics import r2_score, mean_absolute_error
+        from sklearn.linear_model import LinearRegression
+    
+        # random seed
+        if seed is None:
+            seed = int(time.time())
+        else:
+            seed = int(seed)
+        np.random.seed(seed)
+    
+        ### determine if input is function or dataset
+        if callable(X_or_func):
+            # if input is function
+            if verbose:
+                print('Estimating function landscape using Sobol sequence.\n')
+            
+            func = X_or_func
+            bounds = y_or_bounds
+            n_dims = len(bounds)
+            
+            # generate sobol sequence
+            sampler = qmc.Sobol(d=n_dims, scramble=True, seed=seed)
+            master_samples = sampler.random(n=population_size)
+            
+            lower_bounds = np.array([b[0] for b in bounds])
+            upper_bounds = np.array([b[1] for b in bounds])
+            X_vals = qmc.scale(master_samples, lower_bounds, upper_bounds)
+            
+            # evaluate objective
+            y = np.array([func(x) for x in X_vals]).reshape(-1, 1)
+            
+            if feature_names is None:
+                feature_names = [f'x{i}' for i in range(n_dims)]
+                
+        else:
+            # if input is dataset
+            if isinstance(X_or_func, pd.DataFrame):
+                if feature_names is None:
+                    feature_names = X_or_func.columns.tolist()
+                X_vals = X_or_func.values
+            else:
+                X_vals = np.asarray(X_or_func)
+                
+            y = np.asarray(y_or_bounds).reshape(-1, 1)
+            
+            if feature_names is None:
+                feature_names = [f"x{i}" for i in range(X_vals.shape[1])]
+    
+        y = np.asarray(y).reshape(-1, 1)
+        
+        # Z-scale target
+        y_mean, y_std = y.mean(), y.std()
+        y_scaled = (y - y_mean) / (y_std if y_std > 0 else 1.0)
+    
+        # define function set to test
+        if function_set is None:
+            function_set = ('add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'inv')
+    
+        if tournament_size is None:
+            tournament_size = min(max(2, population_size // 8), 128)
+        
+        ### genetic programming architecture
+        est_gp = SymbolicRegressor(
+            population_size=population_size,
+            generations=generations,
+            tournament_size=tournament_size,
+            init_depth=init_depth,
+            parsimony_coefficient=parsimony,
+            max_samples=1.0,
+            const_range=const_range,
+            function_set=function_set,
+            feature_names=feature_names,
+            verbose=verbose,
+            n_jobs=n_jobs,
+            random_state=seed
+        )
+    
+        # fit model
+        if verbose:
+            print('Fitting symbolic regressor.')
+        est_gp.fit(X_vals, y_scaled.ravel())
+    
+        ### OLS linear refinement
+        all_programs = est_gp._programs[-1]
+        refined_stats = []
+        if verbose:
+            print('\nRefining outputs.')
+        for idx, program in enumerate(all_programs):
+            if program is None:
+                continue
+                
+            y_shape = program.execute(X_vals).reshape(-1, 1)
+            
+            if np.any(np.isnan(y_shape)) or np.any(np.isinf(y_shape)):
+                continue
+    
+            # OLS linear refinement (intercept & scaling correction)
+            refiner = LinearRegression().fit(y_shape, y)
+            y_final = refiner.predict(y_shape)
+            
+            r2 = r2_score(y, y_final)
+            mae = mean_absolute_error(y, y_final)
+            
+            raw_formula = str(program)
+            intercept = refiner.intercept_[0]
+            coefficient = refiner.coef_[0][0]
+            refined_formula = f"{coefficient:.3g} * ({raw_formula}) + {intercept:.3g}"
+    
+            refined_stats.append({
+                'index': idx,
+                'program_obj': program,
+                'refiner_model': refiner,
+                'y_pred': y_final,
+                'R2': r2,
+                'MAE': mae,
+                'Length': program.length_,
+                'Formula': raw_formula,
+                'Refined_Formula': refined_formula
+            })
+    
+        # compile final results
+        results_df = pd.DataFrame(refined_stats)
+        if not results_df.empty:
+            results_df = results_df.sort_values(by=['R2', 'MAE'], ascending=[False, True]).reset_index(drop=True)
+        best_eq = results_df['program_obj'].iloc[0] if not results_df.empty else None
+    
+        ### display results
+        if verbose and not results_df.empty:
+            print('\nTop 10 Equations (by R^2):')
+            pd.options.display.max_colwidth = 120
+            print(results_df[['R2', 'MAE', 'Length', 'Refined_Formula']].head(5))
+            print(f"\nBest Equation:\n{results_df['Refined_Formula'].iloc[0]}")
+            print(f"- R^2: {results_df['R2'].iloc[0]:.4g}")
+            print(f"- MAE: {results_df['MAE'].iloc[0]:.4g}")
+    
+            ### plot top result
+            row = results_df.iloc[0]
+            plt.figure(figsize=(6, 4))
+            plt.scatter(y, row['y_pred'], alpha=0.3, s=2)
+            plt.plot([y.min(), y.max()], [y.min(), y.max()], 'k--', alpha=0.5, label='Perfect Fit')
+            plt.title(fr"Best Expression ($R^2$: {results_df['R2'].iloc[0]:.3f})")
+            plt.xlabel('Actual Target')
+            plt.ylabel('Symbolic Prediction')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plt.tight_layout()
+            plt.show()
+        
+        return results_df, best_eq
+
 except:
     pass
