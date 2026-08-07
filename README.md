@@ -17,9 +17,9 @@ All core functions, listed below, are single-line executable and depend on three
 
 ### Analysis
 * **sensitivity**: Sensitivity analysis to quantify each dimension's influence (via SALib).
-* **hyperslice**: Generate a 1D or 2D hyperslice of a function's underlying solution space.
-* **waveform**: Decompose an input signal waveform.
-* **analyze**: Numerically analyze any given dataset.
+* **hyperslice**: Create a hyperslice of the function's underlying solution space.
+* **waveform**: Decompose any 2D waveform.
+* **analyze**: Analyze any input dataset.
 
 
 

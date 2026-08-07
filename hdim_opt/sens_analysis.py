@@ -615,7 +615,10 @@ try:
             df[obj_cols] = df[obj_cols].apply(pd.to_numeric, errors='ignore')
         
         # select numeric & non-null cols
-        df = df.select_dtypes(include=[np.number]).dropna(how='any')
+        df = df.select_dtypes(include=[np.number])
+        
+        df = df.dropna(axis=1, how='all') # drop columns where all values are null
+        df = df.dropna(axis=0, how='any') # drop rows where any value is null
         df = df.loc[:, df.var(ddof=0) > 0] # drop cols with zero variance
         param_names = df.columns
         data_raw = df.values

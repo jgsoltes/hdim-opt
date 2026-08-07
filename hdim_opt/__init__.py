@@ -51,7 +51,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.5.1"
+__version__ = "1.5.2"
 
 # import core components
 from .quasar_optimization import optimize as quasar
