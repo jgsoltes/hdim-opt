@@ -349,7 +349,7 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
                 x_min, x_max = min_vals[0], max_vals[0]
                 y_min, y_max = min_vals[1], max_vals[1]
             else:
-                # Fallback bounds if all data is empty
+                # fallback if all data is empty
                 x_min, x_max = -1, 1
                 y_min, y_max = -1, 1
 
@@ -357,8 +357,8 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
             # case where only best_history exists (num_to_plot = 0)
             if plot_best_history.shape[0] > 1:
                 pca = PCA(n_components=2)
-                pca.fit(plot_best_history) # Fit PCA on best_history
-                plot_best_history = pca.transform(plot_best_history) # Transform best_history
+                pca.fit(plot_best_history) # fit PCA on best_history
+                plot_best_history = pca.transform(plot_best_history) # transform best_history
                 plot_pop_history = None
                 
                 # adjust bounds based on history
@@ -386,30 +386,55 @@ def plot_trajectories(obj_function, pop_history, best_history, bounds, num_to_pl
     if original_dims == 2:
         x_min, x_max = bounds[0, 0], bounds[0, 1]
         y_min, y_max = bounds[1, 0], bounds[1, 1]
+        
         if plot_contour:
             try:
-                # objective function contour plot
-                x = np.linspace(x_min, x_max, 100)
-                y = np.linspace(y_min, y_max, 100)
-                X, Y = np.meshgrid(x, y)
-                xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
-                if vectorized:
-                    Z = obj_function(xy_coords,*args,**kwargs).reshape(X.shape)
-                else:
-                    fitness_list = [obj_function(coords,*args,**kwargs) for coords in xy_coords]
-                    Z = np.array(fitness_list).reshape(X.shape)
+                import time
+                grid_res = 100
                 
-                # evaluate objective function over 2D grid, log scale in case large orders of magnitude 
-                Z = np.log10(Z + epsilon)
-                Z[~np.isfinite(Z)] = np.nanmax(Z[np.isfinite(Z)]) * 1.1 if np.any(np.isfinite(Z)) else 0
-                
-                # remove 5% worst outliers and clip for visualization
-                z_min_clip = np.percentile(Z.flatten(), 5)
-                z_max_clip = np.percentile(Z.flatten(), 95)
-                Z_clipped = np.clip(Z, z_min_clip, z_max_clip)
-                
-                plt.contourf(X, Y, Z, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
-                plt.colorbar(label='Objective Value')
+                # grid size check for non-vectorized functions
+                if not vectorized:
+                    # time a single function evaluation
+                    t0 = time.time()
+                    _ = obj_function(np.array([x_min, y_min]), *args, **kwargs)
+                    eval_time = max(time.time() - t0, 1e-9) # prevent div by zero
+                    
+                    # if 10,000 evals takes longer than 2 seconds, scale it down
+                    if eval_time * 10000 > 2.0:
+                        # calculate maximum grid that finishes in 2 seconds
+                        max_evals = int(2.0 / eval_time)
+                        grid_res = int(np.sqrt(max_evals))
+                        
+                        # if 20x20 grid takes too long, skip contour
+                        if grid_res < 20:
+                            plot_contour = False
+
+                # proceed if didn't abort
+                if plot_contour:
+                    # objective function contour plot
+                    x = np.linspace(x_min, x_max, grid_res)
+                    y = np.linspace(y_min, y_max, grid_res)
+                    X, Y = np.meshgrid(x, y)
+                    xy_coords = np.vstack([X.ravel(), Y.ravel()]).T
+                    
+                    if vectorized:
+                        Z = obj_function(xy_coords, *args, **kwargs).reshape(X.shape)
+                    else:
+                        fitness_list = [obj_function(coords, *args, **kwargs) for coords in xy_coords]
+                        Z = np.array(fitness_list).reshape(X.shape)
+                    
+                    # evaluate objective function over 2D grid, log scale in case large orders of magnitude 
+                    Z = np.log10(Z + epsilon)
+                    Z[~np.isfinite(Z)] = np.nanmax(Z[np.isfinite(Z)]) * 1.1 if np.any(np.isfinite(Z)) else 0
+                    
+                    # remove 5% worst outliers and clip for visualization
+                    z_min_clip = np.percentile(Z.flatten(), 5)
+                    z_max_clip = np.percentile(Z.flatten(), 95)
+                    Z_clipped = np.clip(Z, z_min_clip, z_max_clip)
+                    
+                    plt.contourf(X, Y, Z_clipped, levels=50, cmap='viridis', alpha=0.5, zorder=0) 
+                    plt.colorbar(label='Objective Value')
+                    
             except Exception as e:
                 print(f'Contour failed: {e}')
 

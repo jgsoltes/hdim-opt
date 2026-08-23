@@ -723,7 +723,7 @@ def optimize(func, bounds, args=(),
     
     ################################# VERBOSE #################################
     
-    # final solution prints
+    ### final solution prints
     if verbose:
         print('\nResults:')
 
@@ -738,38 +738,68 @@ def optimize(func, bounds, args=(),
             formatted_display = ', '.join([f'{val:.2e}' for val in best_solution])
             print(f'- Solution: [{formatted_display}]')
 
-        print('\nStats:')
-        
-        # final population entropy
-        try:
-            warnings.filterwarnings('ignore',category=RuntimeWarning)
-            analysis_pop = population.T if vectorized else population
-            noise = np.random.normal(0, 1e-12, analysis_pop.shape)
-            pop_entropy = np.mean(stats.differential_entropy(analysis_pop+noise)) # add small noise to avoid div0
-        except:
-            pop_entropy = np.inf
-        print(f'- Entropy: {pop_entropy:.2f}')
-
-        # mahalanobis distance
-        from scipy.linalg import cho_factor, cho_solve
-        pop_mean = np.mean(analysis_pop, axis=0)
-        diff = best_solution - pop_mean
-        cov_matrix = np.atleast_2d(np.cov(analysis_pop, rowvar=False))
-        cov_matrix += np.eye(n_dimensions) * epsilon
-        try:
-            # covariance Cholesky factor
-            L, low = cho_factor(cov_matrix)
-            inv_cov_diff = cho_solve((L, low), diff)
-            dist = np.sqrt(np.dot(diff, inv_cov_diff)) # distance = sqrt(diff^T * cov^-1 * diff)
-        except np.linalg.LinAlgError:
-            dist = 0.0 # fallback
-        print(f'- Mahalanobis: {dist:.2f}')
-
         # print optimization time
         try:
             print(f'- Elapsed: {(time.time() - start_time):.2f}s')
         except Exception as e:
             print(f'- Elapsed: null') # case where time isn't imported
+
+        ### final population stats
+        print('\nPop. Stats:')
+        
+        # entropy
+        try:
+            warnings.filterwarnings('ignore', category=RuntimeWarning)
+            analysis_pop = population.T if vectorized else population
+            
+            diff_entropies = []
+            for i, (a, b) in enumerate(bounds):
+                param_values = analysis_pop[:, i]
+                
+                # add small noise to prevent -inf entropy on total convergence
+                noise = np.random.normal(0, 1e-12, size=param_values.shape)
+                h_actual = stats.differential_entropy(param_values + noise)
+                
+                bound_range = b - a
+                if bound_range > 0:
+                    # exponential mapping bounds output between 0.0 and 1.0
+                    h_norm = np.exp(h_actual) / bound_range
+                    diff_entropies.append(np.clip(h_norm, 0.0, 1.0)) # safety cap at 1.0
+                else:
+                    diff_entropies.append(0.0)
+
+            diff_entropies = np.array(diff_entropies)
+            avg_entropy = np.mean(diff_entropies)
+            
+            if len(diff_entropies) > 1:
+                entropy_se = np.std(diff_entropies, ddof=1) / np.sqrt(len(diff_entropies))
+                print(f'- Entropy: {avg_entropy:.2g} ± {entropy_se:.2g}')
+            else:
+                print(f'- Entropy: {avg_entropy:.2g}')
+                
+        except Exception as e:
+            print('- Entropy: null')
+
+        # population stdev
+        try:
+            analysis_pop = population.T if vectorized else population
+            
+            # stdev for each dimension
+            pop_stdev = np.std(analysis_pop, axis=0)
+            norm_stdevs = []
+            for i, (a, b) in enumerate(bounds):
+                bound_range = b - a
+                if bound_range > 0:
+                    # max theoretical value is 0.5, if population is split perfectly at boundaries
+                    norm_stdev = (pop_stdev[i] / bound_range)
+                    norm_stdevs.append(np.clip(norm_stdev, 0.0, 1.0))
+                else:
+                    norm_stdevs.append(0.0)     
+            avg_dispersion = np.mean(norm_stdevs)
+            print(f'- Stdev: {avg_dispersion:.2g}')
+        
+        except Exception as e:
+            print('- Stdev: null')
 
     if plot_solutions and verbose:
         print()

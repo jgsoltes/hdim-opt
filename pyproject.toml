@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.5.2" # match version in __init__.py
-description = "Numerical optimization, sampling, and analysis toolkit for high-dimensional problems."
+version = "1.6.0" # match version in __init__.py
+description = "High-dimensional numerical optimization, sampling, and analysis toolkit."
 readme = {file = "README.md", content-type = "text/markdown"}
 
 authors = [
@@ -17,48 +17,20 @@ authors = [
 license = { text = "MIT" }
 requires-python = ">=3.8"
 keywords = [
-    # general
-    "python3",
-    "machine-learning",
-    "data-science",
-    "scientific-computing",
-
-    # optimization
+    # core
     "optimization",
     "high-dimensional",
+    "quasi-monte-carlo",
     "global-optimization",
-    "local-optimization",
-    "black-box-optimization",
     "derivative-free",
     "evolutionary-algorithm",
-    "QUASAR",
-    "metaheuristics",
-    "non-differentiable",
-    "scipy-optimize",
-
-    # sampling
-    "sampling",
-    "quasi-monte-carlo",
-    "sobol-sequence",
-    "hyperellipsoid",
-    "kernel-density-estimation",
-    "lorentzian-kde",
-    "density-estimation",
-    "zero-phase",
-
-
-    # analysis (data & parameter space)
+    
+    # specific functions
     "sensitivity-analysis",
-    "sobol-indices",
-    "hyperslices",
-    "manifold-learning",
-    "entropy",
-    "data-analysis",
-    "parameter-space-exploration",
-    "signal-decomposition",
+    "QUASAR",
+    "hyperellipsoid",
     "symbolic-regression",
-    "genetic-programming",
-    "gplearn"
+    "stepAIC"
 ]
 
 classifiers = [
@@ -87,23 +59,18 @@ dependencies = ["numpy", "scipy"]
 [project.optional-dependencies]
 hds = [
     # required by HDS `pip install hdim_opt[hds]`
-    "scikit-learn",
+    "scikit-learn"
 ]
 
 sensitivity = [
     # required by sensitivity `pip install hdim_opt[sensitivity]`
     "pandas",
     "SALib",
-]
-
-lorentzian = ["numba"]
-
-symbolic = [
-    # required by symbolic regression `pip install hdim_opt[symbolic]`
     "gplearn",
-    "scikit-learn",
-    "pandas",
+    "numba",
+    "statsmodels"
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/jgsoltes/hdim-opt"

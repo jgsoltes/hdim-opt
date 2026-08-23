@@ -29,7 +29,6 @@ try:
     
         ### imports
         try:
-            import numpy as np
             from SALib.sample import sobol as sobol_sample
             from SALib.analyze import sobol as sobol_analyze
             import pandas as pd
@@ -156,8 +155,8 @@ try:
                 plt.show()
         
         return Si_df, S2_df
-except:
-    pass
+
+except Exception: pass
 
 ### data transforms
 def isotropize(data):
@@ -207,6 +206,67 @@ def deisotropize(data_iso, params):
     data_original = (data_centered * params['stdev']) + params['mean']
     return data_original
 
+# bipolar-logarithmic transform
+def encode_bipolar(x_linear, log_floors):
+    '''
+    Objective:
+        - Transforms linear values into bipolar-symmetric space.
+        - Allows for logarithmic transforms on mixed-signed values and exponents (++, --, +-, -+).
+            - Subtracts floor from exponent such that log(x) = log(x+10); minimum value is now always log(0). 
+            - Applies the signs of input values at the end, (symlog-like). 
+                - If x_linear is positive, returns positive value. if x_linear is negative, returns a negative.
+                - If x_linear = 0, holds value at 0.
+        - Example: 
+            - if log_floor is -10, this adds 10 to the log-values; min. is now log(0) rather than log(-10)).
+        - Inverse transformed by calling decode_bipolar(x_bipolar, log_floors).
+    
+    Inputs:
+        - x_linear: Values to transform.
+        - log_floors: Base-10 exponent floor for each value.
+            - Ex: if min. value is 10^-60, floor = -60.
+            - If a dimension's floor is missing (0), it is treated as a symlog [sgn(x) * log(abs(x) - 0)]
+    
+    Outputs:
+        - x_bipolar: Values transformed to bipolar-log space.
+    '''
+    
+    ### extract x_linear
+    x_linear = np.asarray(x_linear)
+    log_floors = np.asarray(log_floors, dtype=float)
+
+    # extract sign and absolute magnitudes with floor safeguard
+    sign = np.sign(x_linear)
+    linear_floors = np.where(log_floors == 0, 0.0, 10.0 ** log_floors)
+    mags = np.maximum(np.abs(x_linear), linear_floors)
+    
+    log_mags = np.where(mags == 0.0, 0.0, np.log10(mags))
+
+    # subtract floor from absolute magnitude, then multiply by sign 
+    # (i.e., if floor is -10, then add 10, so min. value is now log(0) rather than log(-10))
+    x_bipolar = sign * (log_mags - log_floors)
+    
+    return x_bipolar
+
+def decode_bipolar(x_bipolar, log_floors):
+    '''Transforms bipolar-symmetric values back into linear units.'''
+    
+    ### extract x_bipolar
+    x_bipolar = np.asarray(x_bipolar)
+    log_floors = np.asarray(log_floors, dtype=float)
+
+    # extract sign and handle 0s
+    sign = np.sign(x_bipolar)
+    is_neg_zero = (x_bipolar == 0.0) & np.signbit(x_bipolar)
+    sign[is_neg_zero] = -1.0  # keep negative direction for strict zero boundaries
+    
+    # add magnitudes to log_floors (i.e. abs(-10) + (-60) = -50)
+    x_exponent = np.abs(x_bipolar) + log_floors
+    
+    # return linear values
+    x_linear = sign * (10**x_exponent)
+    
+    return x_linear
+
 
 ### hyperslice of function
 try:
@@ -230,7 +290,6 @@ try:
             - slice_stats: Hyperslice statistics.
         '''
     
-        import numpy as np
         import pandas as pd
         import matplotlib.pyplot as plt
         from scipy.stats import qmc
@@ -371,8 +430,8 @@ try:
         slice_data = pd.DataFrame(data_matrix, columns=col_names)
         
         return slice_data, slice_stats
-except:
-    pass
+
+except Exception: pass
 
 
 ### lorentzian KDE
@@ -583,8 +642,8 @@ try:
                 plt.show()
             
         return log_intensity
-except:
-    pass
+
+except Exception: pass
 
 
 ### analyze dataset
@@ -600,8 +659,6 @@ try:
         from sklearn.metrics import r2_score
         from sklearn.decomposition import PCA
         from sklearn.preprocessing import StandardScaler
-        from scipy import stats
-        import numpy as np
         import warnings
         warnings.filterwarnings("ignore", category=FutureWarning) # suppress seaborn warnings
         warnings.filterwarnings("ignore", category=RuntimeWarning) # suppress stats.entropy div0 warnings
@@ -976,8 +1033,7 @@ try:
         except:
             print(f'Skipped plot: {e}')
 
-except:
-    pass
+except Exception: pass
 
 ### symbolic regression
 try:
@@ -1011,7 +1067,6 @@ try:
         '''
     
         import time
-        import numpy as np
         import pandas as pd
         import matplotlib.pyplot as plt
         from scipy.stats import qmc
@@ -1167,5 +1222,128 @@ try:
         
         return results_df, best_eq
 
-except:
-    pass
+except Exception: pass
+
+
+### step AIC
+try:
+    def stepAIC(X, y, model_type='linear', direction='both', verbose=True):
+        '''
+        Objective:
+            - Feature selection to optimize linear or logistic regression models.
+        
+        Inputs:
+            - X: Features.
+            - y: Target variable (must be binary 0/1 for 'logistic').
+            - model_type: 'linear' (OLS) or 'logistic' regression.
+            - direction: 'forward', 'backward', or 'both' (default).
+            - verbose: Boolean to display progress and outputs.
+        
+        Outputs:
+            - optimal_features: The selected feature names.
+            - optimal_model: The fitted model (statsmodels).
+        '''
+    
+        import pandas as pd
+        import statsmodels.api as sm
+    
+        ### select appropriate statsmodels class
+        if model_type == 'linear':
+            model_class = sm.OLS
+            fit_kwargs = {}
+        elif model_type == 'logistic':
+            model_class = sm.Logit
+            fit_kwargs = {'disp': 0}  # disp=0 suppresses outputs
+        else:
+            raise ValueError("model_type must be 'linear' or 'logistic'")
+    
+        ### ensure dataframe
+        if not isinstance(X, pd.DataFrame):
+            if isinstance(X, dict):
+                X = pd.DataFrame(X)
+            else:
+                # lists and arrays: ensure 2D, apply default names
+                X = np.asarray(X)
+                if X.ndim == 1:
+                    X = X.reshape(-1, 1)
+                X = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
+    
+        # initialize optimal feature names
+        initial_features = list(X.columns) if direction == 'backward' else []
+        optimal_features = initial_features.copy()
+        
+        def get_aic(features_list):
+            '''Helper to fit the model and return the AIC.'''
+            try:
+                if not features_list:
+                    # null model for intercept
+                    model = model_class(y, np.ones((len(y), 1))).fit(**fit_kwargs)
+                else:
+                    # model with selected features + intercept
+                    model = model_class(y, sm.add_constant(X[features_list])).fit(**fit_kwargs)
+                return model.aic
+            except Exception:
+                # if model fails to converge, avoid this combination (inf AIC)
+                return np.inf
+    
+        # initialize AIC values
+        current_aic = get_aic(optimal_features)
+        if verbose:
+            print(f'Initial {model_type} model AIC: {current_aic:.2f}')
+    
+        ### stepwise feature selection
+        while True:
+            best_aic = current_aic
+            best_action = None
+            best_feature = None
+            
+            # evaluate additions
+            if direction in ['forward', 'both']:
+                excluded = [f for f in X.columns if f not in optimal_features]
+                for feature in excluded:
+                    aic = get_aic(optimal_features + [feature])
+                    if aic < best_aic:
+                        best_aic = aic
+                        best_action = 'add'
+                        best_feature = feature
+                        
+            # evaluate removals
+            if direction in ['backward', 'both']:
+                for feature in optimal_features:
+                    candidate = optimal_features.copy()
+                    candidate.remove(feature)
+                    aic = get_aic(candidate)
+                    if aic < best_aic:
+                        best_aic = aic
+                        best_action = 'remove'
+                        best_feature = feature
+                        
+            # apply best action
+            if best_action == 'add':
+                optimal_features.append(best_feature)
+                current_aic = best_aic
+                if verbose:
+                    print(f'+ Added {best_feature:20} | New AIC: {current_aic:.2f}')
+            elif best_action == 'remove':
+                optimal_features.remove(best_feature)
+                current_aic = best_aic
+                if verbose:
+                    print(f'- Removed {best_feature:20} | New AIC: {current_aic:.2f}')
+            else:
+                if verbose:
+                    print('Search converged.')
+                break
+                
+        ### fit the optimized model
+        if not optimal_features:
+            optimal_model = model_class(y, np.ones((len(y), 1))).fit(**fit_kwargs)
+        else:
+            optimal_model = model_class(y, sm.add_constant(X[optimal_features])).fit(**fit_kwargs)
+    
+        if verbose:
+            print('\nResults:')
+            print(optimal_model.summary())
+            
+        return optimal_features, optimal_model
+
+except Exception: pass

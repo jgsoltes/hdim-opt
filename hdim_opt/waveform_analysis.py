@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import signal
 
 # constants
-epsilon = 1e-12 # to avoid mathematical singularities
+epsilon = 1e-16 # to avoid mathematical singularities
 
 def apply_noise(signal, noise):
     # adding random gaussian noise within 1% of discrete amplitudes
@@ -217,10 +217,23 @@ def analyze_waveform(x=None, y=None, sample_rate=None, domain='time', method='co
         - df_freq: DataFrame of positive frequency-domain data (N/2+1 rows)
         - metrics: Dictionary of scalar results
     '''
-
-    # clean
+    
+    ### clean inputs
     x = np.array(x)
     y = np.array(y).flatten()
+
+    # sort by x in case not already sorted
+    sort_idx = np.argsort(x)
+    x, y = np.array(x)[sort_idx], np.array(y)[sort_idx]
+
+    # if not x vals aren't uniform, interpolate
+    dx = np.diff(x)
+    if len(dx) > 0 and not np.allclose(dx, dx[0], rtol=1e-4):
+        x_uniform = np.linspace(x[0], x[-1], len(x))
+        y = np.interp(x_uniform, x, y)
+        x = x_uniform
+
+    # extract time or frequency domain
     domain = 'time' if domain.lower() in ['t', 'time'] else 'freq'
     
     # apply transfer function
@@ -293,12 +306,17 @@ def analyze_waveform(x=None, y=None, sample_rate=None, domain='time', method='co
     # action integral
     action_integral = np.trapezoid(y_t**2, t)
     
-    # calculate rise time/decay time
-    rise_s, _, _ = calculate_rise_time(t, np.abs(y_t))
+    # calculate rise time
+    rise_res = calculate_rise_time(t, np.abs(y_t))
+    rise_s = rise_res[0] if rise_res is not None else 0.0
     rise_ns = 1e9 * rise_s
-    fwhm_s, _, _ = calculate_fwhm(t, np.abs(y_t))
-    fwhm_ns = 1e9 * fwhm_s
     
+    # calculate decay time / full width-half max
+    fwhm_res = calculate_fwhm(t, np.abs(y_t))
+    fwhm_s = fwhm_res[0] if fwhm_res is not None else 0.0
+    fwhm_ns = 1e9 * fwhm_s
+
+
     # scalar metrics
     metrics = {
         'peak_t': np.max(np.abs(y_t)),
@@ -307,8 +325,8 @@ def analyze_waveform(x=None, y=None, sample_rate=None, domain='time', method='co
         'action_integral': action_integral,
         'max_dv_dt': np.max(np.abs(dv_dt)),
         'bw_90_hz': f_pos[np.where(cumul_energy >= 0.9 * total_energy)[0][0]],
-        'center_freq_hz': np.sum(f_pos * esd) / (total_energy + 1e-12),
-        'papr_db': 10 * np.log10(np.max(y_t**2) / np.mean(y_t**2)),
+        'center_freq_hz': np.sum(f_pos * esd) / (total_energy + epsilon),
+        'papr_db': 10 * np.log10(np.max(y_t**2) / (np.mean(y_t**2) + epsilon)),
         'sample_rate': fs,
         'rise90_ns': rise_ns,
         'fwhm_ns': fwhm_ns,
@@ -350,7 +368,7 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     Cumulative Energy | Spectrogram
     '''
 
-    # 3 rows, 2 columns
+    ### plot: 3 rows, 2 columns
     fig = plt.figure(figsize=(16, 20))
     gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
     
@@ -366,14 +384,14 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     f_mhz = spectral['freq'][pos_mask] / 1e6
     mag_pos = np.abs(spectral['signal'])[pos_mask]
 
-    # time domain
+    ### time domain
     ax_time.plot(temporal['time_s']*1e6, temporal['amplitude'], color='cyan', label=f"Peak: {metrics['peak_t']:.2f}")
     ax_time.set_title('Time-Domain Signal')
     ax_time.set_xlabel(r'Time ($\mu s$)')
     ax_time.set_ylabel('Amplitude')
     ax_time.legend()
 
-    # frequency domain
+    ### frequency domain
     ax_freq.semilogy(f_mhz, np.abs(spectral['signal']), color='violet')
     ax_freq.set_title('Frequency-Domain Signal')
     ax_freq.set_xlabel('Frequency (MHz)')
@@ -381,14 +399,14 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     ax_freq.set_xlim(0, min(1000, max_f))
     ax_freq.grid(alpha=0.2, which='both')
 
-    # phase spectrum
+    ### phase spectrum
     ax_phase.plot(f_mhz, np.angle(spectral['signal']), color='limegreen', linewidth=0.5)
     ax_phase.set_title('Phase Spectrum')
     ax_phase.set_xlabel('Frequency (MHz)')
     ax_phase.set_ylabel('Phase (rad)')
     ax_phase.set_xlim(ax_freq.get_xlim())
 
-    # energy spectral density (ESD)
+    ### energy spectral density (ESD)
     ax_esd.semilogy(f_mhz, spectral['esd'], color='gold')
     ax_esd.set_title('Energy Spectral Density (ESD)')
     ax_esd.set_ylabel(r'$V^2 \cdot s / Hz$')
@@ -396,7 +414,7 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     ax_esd.set_xlim(ax_freq.get_xlim())
     ax_esd.set_xlim(0, min(1000, max_f))
 
-    # cumulative energy distribution
+    ### cumulative energy distribution
     ax_cum.plot(f_mhz, spectral['energy'], color='gold', linewidth=2)
     ax_cum.fill_between(f_mhz, spectral['energy'], color='gold', alpha=0.2)
     ax_cum.axvline(metrics['bw_90_hz'], color='red', linestyle='--', 
@@ -407,7 +425,7 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     ax_cum.set_xlim(ax_freq.get_xlim())
     ax_cum.legend(fontsize='small')
 
-    # spectrogram
+    ### spectrogram
     # ensure amplitude is real for spectrogram
     sample_rate = metrics['sample_rate']
     y_signal = np.real(temporal['amplitude'])
@@ -436,7 +454,7 @@ def plot_diagnostic_dashboard(temporal, spectral, metrics):
     
     ax_spec.set_title('Spectrogram')
     ax_spec.set_yscale('log')
-    ax_spec.set_ylim(np.abs(spectral['freq']).min()+epsilon, np.abs(spectral['freq'].max()/sample_rate))
+    ax_spec.set_ylim(f[1], f[-1])
     cbar = fig.colorbar(im, ax=ax_spec)
     cbar.set_label('Power/Frequency (dB/Hz)')
 
