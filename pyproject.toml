@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.6.0" # match version in __init__.py
-description = "High-dimensional numerical optimization, sampling, and analysis toolkit."
+version = "1.6.1" # match version in __init__.py
+description = "High-dimensional optimization, sampling, and analysis toolkit."
 readme = {file = "README.md", content-type = "text/markdown"}
 
 authors = [

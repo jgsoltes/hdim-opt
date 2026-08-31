@@ -70,3 +70,6 @@ h.analyze(slice_data) # Analyze any numerical dataset
 **HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the parameter space.
 
 * Benefit: Provides control over high-dimensional sample distributions. Results in higher average solution quality when initializing optimization. (Reference: [https://arxiv.org/abs/2511.07836]).
+
+## Misc
+Bug reports are highly appreciated and will be handled in a timely manner.
