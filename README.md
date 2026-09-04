@@ -1,6 +1,6 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-Numerical optimization package for complex, high-dimensional problems. hdim_opt is a lightweight and comprehensive suite to streamline sampling, optimization, and analysis. Home of the QUASAR evolutionary algorithm and Hyperellipsoid quasi-Monte Carlo sampling.
+hdim_opt is a lightweight, comprehensive Python toolkit to streamline numerical optimization, sampling, and analysis of high-dimensional function landscapes and datasets. Home of the QUASAR evolutionary algorithm and hyperellipsoid density sampling.
 
 All core functions, listed below, are single-line executable and depend on three essential parameters: [obj_function, bounds, n_samples]:
 
@@ -61,15 +61,15 @@ signal_results = h.waveform(uniform_samples[:,0], slice_data.iloc[:,1]) # Analyz
 h.analyze(slice_data) # Analyze any numerical dataset
 ```
 
-## QUASAR Optimizer
+## QUASAR Optimization
 **QUASAR** (Quasi-Adaptive Search with Asymptotic Reinitialization) is a quantum-inspired evolutionary algorithm, highly efficient for minimizing high-dimensional, non-differentiable, and non-parametric objective functions.
 
 * Benefit: Significant improvements in convergence speed and solution quality for high-dimensional spaces compared to standard optimization algorithms like Differential Evolution and L-SHADE. (Reference: [https://arxiv.org/abs/2511.13843]).
 
-## HDS Sampler
+## Hyperellipsoid Sampling
 **HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the parameter space.
 
 * Benefit: Provides control over high-dimensional sample distributions. Results in higher average solution quality when initializing optimization. (Reference: [https://arxiv.org/abs/2511.07836]).
 
-## Misc
+## Issues & Support
 Bug reports are highly appreciated and will be handled in a timely manner.
