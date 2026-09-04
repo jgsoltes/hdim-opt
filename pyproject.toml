@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.6.1" # match version in __init__.py
-description = "High-dimensional optimization, sampling, and analysis toolkit."
+version = "1.6.2" # match version in __init__.py
+description = "Numerical optimization, sampling, and analysis toolkit for high-dimensional problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
 authors = [
@@ -18,19 +18,23 @@ license = { text = "MIT" }
 requires-python = ">=3.8"
 keywords = [
     # core
-    "optimization",
     "high-dimensional",
-    "quasi-monte-carlo",
-    "global-optimization",
-    "derivative-free",
-    "evolutionary-algorithm",
+    "optimization",
+    "sampling",
     
-    # specific functions
+    # specific features
+    "evolutionary-algorithm",
+    "quasi-monte-carlo",
     "sensitivity-analysis",
-    "QUASAR",
-    "hyperellipsoid",
+    "landscape-estimation",
     "symbolic-regression",
-    "stepAIC"
+    "lorentzian-KDE",
+    "stepAIC",
+    "waveform-analysis",
+
+    # original methods
+    "QUASAR-optimization",
+    "hyperellipsoid-sampling"
 ]
 
 classifiers = [

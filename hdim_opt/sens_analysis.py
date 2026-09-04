@@ -665,6 +665,7 @@ def analyze(data, transform=False, save=False):
     
     # select numeric & non-null cols
     df = df.select_dtypes(include=[np.number]) # numeric columns
+    df = df.replace([np.inf, -np.inf], np.nan) # convert infs to null
     df = df.dropna(axis=1, how='all') # drop columns where all values are null
     df = df.dropna(axis=0, how='any') # drop rows where any value is null
     df = df.loc[:, df.var(ddof=0) > 0] # drop cols with zero variance
@@ -736,14 +737,15 @@ def analyze(data, transform=False, save=False):
 
     # 1d plot
     else:
-        print('- Stats:')
-        print(f'Mean: {np.mean(data):.3g}')
-        print(f'Median: {np.median(data):.3g}')
-        print(f'Stdev: {np.std(data):.3g}\n')
+        print('Stats:')
+        print(f'- Mean: {np.mean(data):.3g}')
+        print(f'- Median: {np.median(data):.3g}')
+        print(f'- Stdev: {np.std(data):.3g}\n')
         
         sns.kdeplot(x=data.flatten(),alpha=0.75)
+        value_label = 'Value (Arcsinh)' if transform else 'Value'
         plt.title('Probability Density')
-        plt.xlabel('Value')
+        plt.xlabel(value_label)
         plt.show()
         if save:
             pdf.savefig(plt.gcf(), bbox_inches='tight')
