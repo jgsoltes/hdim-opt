@@ -660,16 +660,16 @@ def analyze(data, transform=False, save=False):
     df = pd.DataFrame(data)
 
     # attempt to convert non-numeric to numeric
-    obj_cols = df.select_dtypes(exclude=[np.number]).columns
-    if not obj_cols.empty:
-        df[obj_cols] = df[obj_cols].apply(pd.to_numeric, errors='coerce')
+    df = df.apply(pd.to_numeric, errors='coerce')
     
     # select numeric & non-null cols
     df = df.select_dtypes(include=[np.number]) # numeric columns
     df = df.replace([np.inf, -np.inf], np.nan) # convert infs to null
-    df = df.dropna(axis=1, how='all') # drop columns where all values are null
+    df = df.dropna(axis=1, thresh=int(len(df) * 0.5)) # drop columns where >50% values are null
     df = df.dropna(axis=0, how='any') # drop rows where any value is null
     df = df.loc[:, df.var(ddof=0) > 0] # drop cols with zero variance
+
+    # extract data
     param_names = df.columns
     data_raw = df.values
 
