@@ -9,7 +9,6 @@ All core functions, listed below, are single-line executable and depend on three
 * **hyperellipsoid**: Generate hyperellipsoidal sample sequence; may accelerate optimization.
 * **isotropize**: Isotropize the input data via zero-phase component analysis (ZCA).
 * **encode_bipolar**: Bipolar-logarithmic transform, when negative values and exponents are present.
-* **lorentzian**: Fit a Lorentzian/Cauchy kernel density estimation (KDE) to the data.
 
 ### Optimization
 * **quasar**: Optimization using the QUASAR evolutionary algorithm.
@@ -46,7 +45,6 @@ uniform_samples = h.uniform(n_samples, bounds, method='sobol') # Uniform samplin
 ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
 iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data (ZCA)
 bipolar_log_samples = h.encode_bipolar(iso_samples, [b[0] for b in bounds]) # Bipolar-logarithm transform
-kde = h.lorentzian(iso_samples, 1.0, iso_samples, verbose=True) # Lorentzian multivariate KDE
 
 ### Optimization
 solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization

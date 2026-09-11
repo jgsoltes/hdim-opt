@@ -7,7 +7,6 @@ Functions:
 	- hyperellipsoid: Generate hyperellipsoidal sample sequence; may accelerate optimization.
 	- isotropize: Isotropize the input data via zero-phase component analysis (ZCA).
 	- encode_bipolar: Bipolar-logarithmic transform, when negative values and exponents are present.
-	- lorentzian: Fit a Lorentzian/Cauchy kernel density estimation (KDE) to the data.
 
 	Optimization:
 	- quasar: Optimization using the QUASAR evolutionary algorithm.
@@ -40,7 +39,6 @@ Example Usage:
 	>>> ellipsoid_samples = h.hyperellipsoid(n_samples, bounds, verbose=True) # Hyperellipsoid sampling
 	>>> iso_samples, iso_params = h.isotropize(ellipsoid_samples) # Isotropize data (ZCA)
 	>>> bipolar_log_samples = h.encode_bipolar(iso_samples, [b[0] for b in bounds]) # Bipolar-logarithm transform
-	>>> kde = h.lorentzian(iso_samples, 1.0, iso_samples, verbose=True) # Lorentzian multivariate KDE
 
 	### Optimization
 	>>> solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
@@ -56,7 +54,7 @@ Example Usage:
 """
 
 # package version
-__version__ = "1.6.2"
+__version__ = "1.6.3"
 
 # import core components
 from .quasar_optimization import optimize as quasar
@@ -68,29 +66,33 @@ from . import quasar_helpers
 try:
     from .hyperellipsoid_sampling import sample as hyperellipsoid
     from .hyperellipsoid_sampling import uniform as uniform
-except ImportError:
+except ImportError as e:
     hyperellipsoid = uniform = None
+    print(e)
 
 # sensitivity analysis, lorentzian KDE, data analysis, isotropization
 try:
     from .sens_analysis import (sensitivity, lorentzian, analyze, hyperslice, symbolic, stepAIC, 
         isotropize, deisotropize, encode_bipolar, decode_bipolar)
-except ImportError:
+except ImportError as e:
     sensitivity = lorentzian = analyze = hyperslice = symbolic = stepAIC = None
     isotropize = deisotropize = encode_bipolar = decode_bipolar = None
+    print(e)
 
 # waveform analysis
 try:
     from .waveform_analysis import analyze_waveform as waveform
     from . import waveform_analysis
-except ImportError:
+except ImportError as e:
     waveform = waveform_analysis = None
+    print(e)
 
 # test functions
 try:
     from . import test_functions
-except ImportError:
+except ImportError as e:
     test_functions = None
+    print(e)
 
 # define full list
 __all__ = [

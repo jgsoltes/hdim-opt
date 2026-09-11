@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hdim_opt"
-version = "1.6.2" # match version in __init__.py
+version = "1.6.3" # match version in __init__.py
 description = "Numerical optimization, sampling, and analysis toolkit for high-dimensional problems."
 readme = {file = "README.md", content-type = "text/markdown"}
 
@@ -55,8 +55,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Information Analysis",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Scientific/Engineering :: Bio-Informatics"
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = ["numpy", "scipy"]
 

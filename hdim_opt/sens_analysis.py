@@ -372,7 +372,7 @@ def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None
         ### print stats
         print(f'Hyperslice stats ({len(slice_dims)}D):')
         print(f'- Entropy: {norm_entropy:.2%}' if not np.isnan(norm_entropy) else '- Entropy: NaN (0D Volume)')
-        print('- Objective Values:')
+        print('- Objective:')
         print(f'   - Max: {np.max(Z):.3g}')
         print(f'   - Min: {np.min(Z):.3g}')
         print(f'   - Stdev: {np.std(Z):.3g}\n')
@@ -430,6 +430,7 @@ def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None
 try:
     from numba import njit, prange
     @njit(parallel=True, fastmath=True)
+    
     def _numba_lorentzian(x, ensemble, inv_sigma_sq, log_norm, eff_dim_plus_1_over_2, is_balloon):
         '''Numba wrapped for fast kernel evaluation.'''
         N_queries = x.shape[0]
@@ -472,7 +473,7 @@ try:
             results[i] = max_val + np.log(sum_exp) - log_N
             
         return results
-
+    
     def lorentzian(x, sigma, ensemble, eff_dim=None, estimator='balloon', verbose=False):
         '''
         Objective:
@@ -634,8 +635,8 @@ try:
                 plt.show()
             
         return log_intensity
-
-except Exception: pass
+except Exception:
+    lorentzian = None
 
 
 ### analyze dataset
@@ -661,7 +662,7 @@ def analyze(data, transform=False, save=False):
     # attempt to convert non-numeric to numeric
     obj_cols = df.select_dtypes(exclude=[np.number]).columns
     if not obj_cols.empty:
-        df[obj_cols] = df[obj_cols].apply(pd.to_numeric, errors='ignore')
+        df[obj_cols] = df[obj_cols].apply(pd.to_numeric, errors='coerce')
     
     # select numeric & non-null cols
     df = df.select_dtypes(include=[np.number]) # numeric columns
@@ -737,22 +738,47 @@ def analyze(data, transform=False, save=False):
 
     # 1d plot
     else:
+        ### asymmetric deviation
+        # percentiles
+        flat_data = data.flatten()
+        low, median, high = np.percentile(flat_data, [16, 50, 84])
+        minus_val = median - low
+        plus_val = high - median
+        
+        # entropy
+        diff_entropy = stats.differential_entropy(flat_data)
+        data_range = np.max(flat_data) - np.min(flat_data)
+        
+        # protect against division by zero if all values are identical
+        if data_range > 0:
+            norm_entropy = np.exp(diff_entropy) / data_range
+        else:
+            norm_entropy = 0.0
+
+        ### print stats
         print('Stats:')
-        print(f'- Mean: {np.mean(data):.3g}')
+        print(f'- Entropy: {norm_entropy:.3g}')
         print(f'- Median: {np.median(data):.3g}')
+        print(f'   (+): {plus_val:.3g}')
+        print(f'   (-): {minus_val:.3g}')
+        print(f'- Mean: {np.mean(data):.3g}')
         print(f'- Stdev: {np.std(data):.3g}\n')
         
-        sns.kdeplot(x=data.flatten(),alpha=0.75)
+        # plot
+        sns.kdeplot(x=flat_data, alpha=0.75)
         value_label = 'Value (Arcsinh)' if transform else 'Value'
         plt.title('Probability Density')
         plt.xlabel(value_label)
-        plt.show()
+        
         if save:
             pdf.savefig(plt.gcf(), bbox_inches='tight')
             pdf.close()
             print(f'Saved analysis to {save_filename}.')
+        plt.show()
+        
         return None
 
+    ### higher-dimensional plots
     # remove nulls from data
     valid_indices = ~np.isnan(x) & ~np.isnan(y)
     x, y = x[valid_indices], y[valid_indices]
@@ -792,6 +818,8 @@ def analyze(data, transform=False, save=False):
         norm_entropy = np.mean(efficiencies)
         entropy_se = np.std(efficiencies, ddof=1) / np.sqrt(len(efficiencies)) # standard error across dimensions
         norm_span = np.linalg.norm(col_spans)
+        
+        # print stats
         print('Stats:')
         print(f'- Norm. Stdev: {total_occupancy:.1%} ± {total_occupancy_se:.1%}')
         print(f'- Entropy: {norm_entropy:.1%} ± {entropy_se:.1%}')
@@ -838,7 +866,10 @@ def analyze(data, transform=False, save=False):
             x_label, y_label = 'Principal Component 1', 'Principal Component 2'
         else:
             x_label, y_label = param_names[0], param_names[1]
-    
+        if transform: 
+            x_label += ' (Arcsinh)'
+            y_label += ' (Arcsinh)'
+            
         # scatter plot
         ax[0].scatter(x=x,y=y,s=1)
         ax[0].set_xlabel(x_label)
