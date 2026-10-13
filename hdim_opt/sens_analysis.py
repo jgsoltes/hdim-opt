@@ -264,7 +264,8 @@ def decode_bipolar(x_bipolar, log_floors):
 
 
 ### hyperslice of function
-def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None, verbose=True):
+def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, 
+               seed=None, args=None, verbose=True):
     '''
     Objective:
         - Generates an optimized hyperslice (0D to ND) of the objective's underlying solution space.
@@ -278,6 +279,8 @@ def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None
         - n_samples: Number of samples to distribute (preferred powers of 2).
         - tol: Objective value tolerance threshold for the local minimization.
         - seed: Random seed for reproducibility.
+        - args: Arguments for the objective function if desired.
+        - verbose: Display plot of the hyperslice.
     
     Outputs:
         - slice_data: Hyperslice solution array.
@@ -297,11 +300,13 @@ def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None
     n_dims = len(bounds)
     slice_dims = list(slice_dims) # convert input tuple to list
 
+    if args is None:
+        args = ()
+    
     # random seed
     if seed is None:
         seed = time.time()
     seed = int(seed)
-    np.random.seed(seed)
         
     hidden_indices = [i for i in range(n_dims) if i not in slice_dims]
     hidden_bounds = [bounds[i] for i in hidden_indices]
@@ -325,29 +330,29 @@ def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6, seed=None
         
         # all dimensions fixed (essentially the QMC sequence)
         if len(hidden_indices) == 0:
-            Z[i] = func(current_sample)
+            Z[i] = func(current_sample, *args)
             optimized_coords[i] = current_sample
             
         # 0 dimensions fixed
         elif len(slice_dims) == 0:
-            res = minimize(func, x0=current_sample, bounds=bounds, tol=tol)
-            Z[i] = res.fun if res.success else func(current_sample)
+            res = minimize(func, x0=current_sample, bounds=bounds, tol=tol, args=args)
+            Z[i] = res.fun if res.success else func(current_sample, *args)
             optimized_coords[i] = res.x if res.success else current_sample
             
         # multiple dimensions fixed
         else:
             locked_vis_vars = current_sample[slice_dims]
-            
-            def sub_objective(hidden_vars):
-                coord = np.zeros(n_dims)
-                coord[slice_dims] = locked_vis_vars
+
+            coord = np.zeros(n_dims)
+            coord[slice_dims] = locked_vis_vars
+            def sub_objective(hidden_vars, *args):
                 coord[hidden_indices] = hidden_vars
-                return func(coord)
-                
+                return func(coord, *args)
+
+            # minimize the current sample
             starting_seed = current_sample[hidden_indices]
-            res = minimize(sub_objective, x0=starting_seed, bounds=hidden_bounds, tol=tol)
-            
-            Z[i] = res.fun if res.success else sub_objective(starting_seed)
+            res = minimize(sub_objective, x0=starting_seed, bounds=hidden_bounds, tol=tol, args=args)
+            Z[i] = res.fun if res.success else sub_objective(starting_seed, *args)
             
             # store actual coordinate
             full_coord = np.zeros(n_dims)
@@ -641,9 +646,10 @@ except Exception:
 
 ### analyze dataset
 def analyze(data, transform=False, save=False):
-    '''Quick analysis of data matrix.'''
+    '''Quick analysis of the numerical variables within a dataset.'''
 
     import pandas as pd
+    import numpy as np
     import matplotlib.pyplot as plt
     import seaborn as sns
     from sklearn.linear_model import LinearRegression
@@ -652,6 +658,7 @@ def analyze(data, transform=False, save=False):
     from sklearn.metrics import r2_score
     from sklearn.decomposition import PCA
     from sklearn.preprocessing import StandardScaler
+    from scipy import stats
     import warnings
     warnings.filterwarnings("ignore", category=FutureWarning) # suppress seaborn warnings
     warnings.filterwarnings("ignore", category=RuntimeWarning) # suppress stats.entropy div0 warnings
@@ -693,6 +700,9 @@ def analyze(data, transform=False, save=False):
     # initialize plot saving
     save_filename = 'statistical_analysis.pdf'
     pdf = PdfPages(save_filename) if save else None
+    
+    # Max points to render in plots to prevent lagging/hanging
+    max_plot_points = 11000
     
     ### PCA
     if n_dim > 2:
@@ -764,8 +774,14 @@ def analyze(data, transform=False, save=False):
         print(f'- Mean: {np.mean(data):.3g}')
         print(f'- Stdev: {np.std(data):.3g}\n')
         
-        # plot
-        sns.kdeplot(x=flat_data, alpha=0.75)
+        ### plot
+        # downsample for 1D KDE plotting speed
+        if len(flat_data) > max_plot_points:
+            flat_data_plot = np.random.choice(flat_data, max_plot_points, replace=False)
+        else:
+            flat_data_plot = flat_data
+            
+        sns.kdeplot(x=flat_data_plot, alpha=0.75)
         value_label = 'Value (Arcsinh)' if transform else 'Value'
         plt.title('Probability Density')
         plt.xlabel(value_label)
@@ -870,8 +886,15 @@ def analyze(data, transform=False, save=False):
             x_label += ' (Arcsinh)'
             y_label += ' (Arcsinh)'
             
+        # Downsample plotting coordinates for speed & PDF size
+        if len(x) > max_plot_points:
+            idx = np.random.choice(len(x), max_plot_points, replace=False)
+            x_plot, y_plot = x[idx], y[idx]
+        else:
+            x_plot, y_plot = x, y
+            
         # scatter plot
-        ax[0].scatter(x=x,y=y,s=1)
+        ax[0].scatter(x=x_plot, y=y_plot, s=1)
         ax[0].set_xlabel(x_label)
         ax[0].set_ylabel(y_label)
         ax[0].set_title('Comparison')
@@ -883,7 +906,7 @@ def analyze(data, transform=False, save=False):
     
         # colormap dark mode: black -> color -> white | light mode: white -> color -> black
         dynamic_cmap = sns.blend_palette([bg_color, user_color, text_color], as_cmap=True)
-        sns.kdeplot(x=x, y=y, fill=True, cmap=dynamic_cmap, ax=ax[1], thresh=0.03)
+        sns.kdeplot(x=x_plot, y=y_plot, fill=True, cmap=dynamic_cmap, ax=ax[1], thresh=0.03)
         ax[1].set_title('Density')
         ax[1].set_xlabel(x_label)
         ax[1].set_ylabel(y_label)
@@ -946,10 +969,16 @@ def analyze(data, transform=False, save=False):
     
         ### plot feature distributions
         fig, ax = plt.subplots(1,2,figsize=(12,5.5))
+        
+        # downsample dataframes for feature plotting
+        df_transformed_plot = df_transformed.sample(min(len(df_transformed), max_plot_points))
         if n_dim > 2:
-            sns.boxplot(data=df_top, ax=ax[0])
+            df_top_plot = df_top.sample(min(len(df_top), max_plot_points))
+            
+        if n_dim > 2:
+            sns.boxplot(data=df_top_plot, ax=ax[0])
         else:
-            sns.boxplot(data=df_transformed, ax=ax[0])
+            sns.boxplot(data=df_transformed_plot, ax=ax[0])
     
         boxplot_title = 'Feature Distributions (Arcsinh)' if transform else 'Feature Distributions'
         value_label = 'Value (Arcsinh)' if transform else 'Value'
@@ -959,9 +988,9 @@ def analyze(data, transform=False, save=False):
     
         # plot overlaid feature KDE densities
         if n_dim > 2:
-            sns.kdeplot(data=df_top, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
+            sns.kdeplot(data=df_top_plot, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
         else:
-            sns.kdeplot(data=df_transformed, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
+            sns.kdeplot(data=df_transformed_plot, fill=True, common_norm=False, alpha=0.3, cut=0, ax=ax[1])
         feat_density_title = 'Feature Densities (Arcsinh)' if transform else 'Feature Densities'
         ax[1].set_title(feat_density_title)
         ax[1].set_xlabel(value_label)
@@ -1017,14 +1046,23 @@ def analyze(data, transform=False, save=False):
             n_components = 2
             pca_labels = [f'PC {i+1}' for i in range(n_components)]
             
+            # downsample for the parallel line plots
+            if len(data) > max_plot_points:
+                idx = np.random.choice(len(data), max_plot_points, replace=False)
+                plot_var_data = var_data[idx]
+                plot_pca_data = pca_data[idx]
+            else:
+                plot_var_data = var_data
+                plot_pca_data = pca_data
+            
             ### normalize data
             def normalize_for_plot(matrix):
                 c_min = np.min(matrix, axis=0)
                 c_max = np.max(matrix, axis=0)
                 c_range = np.where(c_max > c_min, c_max - c_min, 1.0)
                 return (matrix - c_min) / c_range
-            norm_var_data = normalize_for_plot(var_data)
-            norm_pca_data = normalize_for_plot(pca_data)
+            norm_var_data = normalize_for_plot(plot_var_data)
+            norm_pca_data = normalize_for_plot(plot_pca_data)
         
             ### plot
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
@@ -1035,23 +1073,24 @@ def analyze(data, transform=False, save=False):
             colors = plt.cm.plasma(norm_pca_data[:, 0])
         
             # render via LineCollection
-            var_segments = np.zeros((data.shape[0], n_keep, 2))
+            var_segments = np.zeros((norm_var_data.shape[0], n_keep, 2))
             var_segments[:, :, 0] = x_coords_var
             var_segments[:, :, 1] = norm_var_data
-            pca_segments = np.zeros((data.shape[0], n_components, 2))
+            pca_segments = np.zeros((norm_pca_data.shape[0], n_components, 2))
             pca_segments[:, :, 0] = x_coords_pca
             pca_segments[:, :, 1] = norm_pca_data
+            
             var_lc = LineCollection(var_segments, colors=colors, alpha=0.5, linewidths=1.5)
             pca_lc = LineCollection(pca_segments, colors=colors, alpha=0.5, linewidths=1.5)
             ax1.add_collection(var_lc)
             ax2.add_collection(pca_lc)
         
             # initialize scatter plot
-            x_flat_var = np.tile(x_coords_var, data.shape[0])
+            x_flat_var = np.tile(x_coords_var, norm_var_data.shape[0])
             color_flat_var = np.repeat(colors, n_keep, axis=0)
             ax1.scatter(x_flat_var, norm_var_data.flatten(), color=color_flat_var, alpha=0.5, s=3.33, zorder=3)
         
-            x_flat_pca = np.tile(x_coords_pca, data.shape[0])
+            x_flat_pca = np.tile(x_coords_pca, norm_pca_data.shape[0])
             color_flat_pca = np.repeat(colors, n_components, axis=0)
             ax2.scatter(x_flat_pca, norm_pca_data.flatten(), color=color_flat_pca, alpha=0.5, s=3.33, zorder=3)
         
@@ -1083,7 +1122,7 @@ def analyze(data, transform=False, save=False):
     if save:
         pdf.close()
         print(f'Saved analysis to {save_filename}.')
-    
+
     return None
 
 ### symbolic regression
@@ -1106,7 +1145,7 @@ def symbolic(X_or_func, y_or_bounds,
         - init_depth: Initial expression depth (number of terms).
         - const_range: Range to explore for constant values.
         - function_set: List of strings defining gplearn functions to test; i.e., ['add','sub','div']
-            - Default: ('add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'inv')
+            - Default: ('add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'inv', 'sin')
         - n_jobs: Number of cores to utilize.
         - seed = Random seed for reproducibility.
         - verbose: Display progress and outputs.
@@ -1178,7 +1217,7 @@ def symbolic(X_or_func, y_or_bounds,
 
     # define function set to test
     if function_set is None:
-        function_set = ('add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'inv')
+        function_set = ('add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'inv', 'sin')
     
     ### genetic programming architecture
     est_gp = SymbolicRegressor(

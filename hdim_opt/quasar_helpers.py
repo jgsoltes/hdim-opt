@@ -63,13 +63,13 @@ def apply_penalty(fitnesses, solutions, constraints, constraint_penalty, vectori
     return fitnesses + penalties
 
 
-############## POLISHING ##############
+############## MINIMIZATION & POLISHING ##############
 
-### minimization wrapper
+### minimization
 def minimize(func, bounds, 
              method='L-BFGS-B', init=None,
              constraints=None, tolerance=None,
-             verbose=True, **kwargs):
+             verbose=True, args=None, **solver_kwargs):
     '''
     Objective:
         - Minimize the given function within the parameter bounds.
@@ -81,27 +81,32 @@ def minimize(func, bounds,
             - All scipy options are available that do not explicitly require a Jacobian.
         - x0: Initial guess.
         - constraints: Constraints, in scipy's input shape.
-        - kwargs: Keyword arguments for scipy's minimize function.
+        - args: Sequential arguments for the objective function.
+        - solver_kwargs: Keyword arguments for the chosen scipy.minimize solver.
     Outputs:
         - solution: Best solution found.
         - fitness: Objective function value.
     '''
     
     # import
-    from scipy import optimize
+    from scipy.optimize import minimize as scipy_minimize
 
     # convert to array
     bounds = np.array(bounds)
+    
+    # extract objective function args
+    if args is None:
+        args = ()
     
     # default initial guess to the median of bounds
     if init is None:
         init = np.mean(bounds, axis=1)
 
     # minimize via scipy
-    results = optimize.minimize(func, x0=init, 
+    results = scipy_minimize(func, x0=init, 
                                 method=method, bounds=bounds, 
                                 constraints=constraints, tol=tolerance,
-                                **kwargs)
+                                args=args, **solver_kwargs)
     solution, fitness = results.x, results.fun
 
     # if optimization fails
@@ -135,7 +140,7 @@ def polish_solution(
             vectorized=None, constraints=None, args=None, kwargs=None, 
             polish_minimizer=None, verbose=None):
     try:
-        from scipy import optimize
+        from scipy.optimize import minimize as scipy_minimize
         # handles a single 1D vector input (x) and returns a scalar fitness value.
         def polish_obj_func(x):
             '''Wrapper function to handle vectorized and non-vectorized inputs for SciPy minimize.'''
@@ -201,7 +206,7 @@ def polish_solution(
         # minimize
         if verbose:
             print(f'Polishing solution with {polish_minimizer}.')
-        polish_result = optimize.minimize(
+        polish_result = scipy_minimize(
                                 polish_obj_func, best_solution, method = polish_minimizer,
                                 bounds=bounds, options={'maxiter': polish_iterations},
                                 constraints = scipy_constraints if constraints else()

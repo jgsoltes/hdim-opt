@@ -48,13 +48,13 @@ Example Usage:
 
 	### Analysis
 	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
-	>>> slice_data, stats = h.hyperslice(obj_func, bounds, slice_dims=(1,2)) # Estimate/hyperslice the solution space
+	slice_data, stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1), n_samples=2**7) # Estimate solution space
 	>>> signal_results = h.waveform(uniform_samples[:,0], slice_data.iloc[:,1]) # Analyze 2D waveform
 	>>> h.analyze(slice_data) # Analyze any numerical dataset
 """
 
 # package version
-__version__ = "1.6.4"
+__version__ = "1.6.5"
 
 # import core components
 from .quasar_optimization import optimize as quasar

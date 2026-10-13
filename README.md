@@ -1,6 +1,8 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-hdim_opt is a lightweight, comprehensive Python toolkit to streamline numerical optimization, sampling, and analysis of high-dimensional function landscapes and datasets. Home of the QUASAR evolutionary algorithm and hyperellipsoid density sampling.
+`hdim_opt` is a lightweight yet comprehensive Python toolkit to streamline numerical optimization, sampling, and analysis of high-dimensional function landscapes and datasets. It features several methods for sample initialization, derivative & derivative-free optimization, and statistical analyses & visualizations of the solution landscape. 
+
+`hdim_opt` provides single-line execution to streamline and improve upon common tasks that are inefficient to implement manually; particularly effective for black-box, high-dimensional, non-differentiable, non-parametric, multi-modal, multi-objective, and non-convex objective functions.
 
 All core functions, listed below, are single-line executable and depend on three essential parameters: [obj_function, bounds, n_samples]:
 
@@ -24,7 +26,7 @@ All core functions, listed below, are single-line executable and depend on three
 
 
 ## Installation
-Install `hdim_opt` directly from PyPI:
+Install `hdim_opt` from PyPI:
 
 ```bash
 pip install hdim_opt
@@ -50,24 +52,20 @@ bipolar_log_samples = h.encode_bipolar(iso_samples, [b[0] for b in bounds]) # Bi
 solution, fitness = h.quasar(obj_func, bounds, init=ellipsoid_samples) # Evolutionary optimization
 local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # Gradient-based optimization
 all_expr, best_expr = h.symbolic(obj_func, bounds) # Symbolic regression
-opt_features, opt_model = h.stepAIC(iso_samples, solution) # R's stepAIC for linear/logistic regression
+opt_features, opt_model = h.stepAIC(iso_samples, solution) # R's stepAIC for feature selection & linear regression
 
 ### Analysis
 Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
-slice_data, stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1)) # Estimate/hyperslice the solution space
+slice_data, stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1), n_samples=2**7) # Estimate solution space
 signal_results = h.waveform(uniform_samples[:,0], slice_data.iloc[:,1]) # Analyze 2D waveform
 h.analyze(slice_data) # Analyze any numerical dataset
 ```
 
 ## QUASAR Optimization
-**QUASAR** (Quasi-Adaptive Search with Asymptotic Reinitialization) is a quantum-inspired evolutionary algorithm, highly efficient for minimizing high-dimensional, non-differentiable, and non-parametric objective functions.
-
-* Benefit: Significant improvements in convergence speed and solution quality for high-dimensional spaces compared to standard optimization algorithms like Differential Evolution and L-SHADE. (Reference: [https://arxiv.org/abs/2511.13843]).
+Quasi-Adaptive Search with Asymptotic Reinitialization is an evolutionary algorithm highly efficient for minimizing high-dimensional, non-differentiable, and non-parametric objective functions. ([https://arxiv.org/abs/2511.13843]).
 
 ## Hyperellipsoid Sampling
-**HDS** (Hyperellipsoid Density Sampling) is a non-uniform Quasi-Monte Carlo sampling method, specifically designed to exploit promising regions of the parameter space.
-
-* Benefit: Provides control over high-dimensional sample distributions. Results in higher average solution quality when initializing optimization. (Reference: [https://arxiv.org/abs/2511.07836]).
+Hyperellipsoid Density Sampling is a non-uniform Quasi-Monte Carlo sampling method, designed to exploit promising regions of the parameter space ([https://arxiv.org/abs/2511.07836]).
 
 ## Issues & Support
-Bug reports are highly appreciated and will be handled in a timely manner.
+Bug reports are highly appreciated and will be handled timely.

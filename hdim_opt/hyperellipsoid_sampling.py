@@ -25,7 +25,7 @@ def uniform(n_samples, bounds, method='sobol', normalize=False, scramble=True, s
     Inputs:
         - n_samples: Number of samples to generate.
         - bounds: Range to sample over.
-        - sequence: String specifying the sampling method ('sobol', 'random', 'lhs', 'halton').
+        - method: String specifying the sampling method ('sobol', 'random', 'lhs', 'halton').
         - normalize: Boolean, if True keeps samples normalized to [0,1].
         - scramble: Boolean, to apply random noise (scrambling) to the sequence.
         - seed: Random seed.
@@ -36,6 +36,10 @@ def uniform(n_samples, bounds, method='sobol', normalize=False, scramble=True, s
     # bounds & n_dimensions
     bounds = np.array(bounds)
     n_dimensions = bounds.shape[0]
+
+    # convert seed for safety
+    if seed is not None:
+        seed = int(seed)
     
     # initialize sampler
     method = method.lower()
@@ -53,7 +57,6 @@ def uniform(n_samples, bounds, method='sobol', normalize=False, scramble=True, s
             sampler = stats.qmc.Halton(d=n_dimensions, scramble=scramble, seed=seed)
         else:
             raise ValueError(f"Sampling method '{method}' is not supported. Choose 'sobol', 'random', 'lhs', 'halton'.")
-            
         samples_unit = sampler.random(n=n_samples)
     
     # scale bounds if provided
