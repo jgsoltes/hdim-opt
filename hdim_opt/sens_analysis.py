@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats
+import time
 epsilon = np.finfo(float).tiny
 
 ### sensitivity analysis
@@ -30,7 +31,6 @@ def sensitivity(func, bounds, n_samples=2**7,
     from SALib.sample import sobol as sobol_sample
     from SALib.analyze import sobol as sobol_analyze
     import pandas as pd
-    import time
     
     ### extract inputs
     start_time = time.time()
@@ -293,7 +293,6 @@ def hyperslice(func, bounds, slice_dims=(), n_samples=2**10, tol=1e-6,
     from scipy.optimize import minimize
     import matplotlib.tri as tri
     from sklearn.decomposition import PCA
-    import time
 
     ### extract parameters
     n_samples = int(n_samples)
@@ -1155,7 +1154,6 @@ def symbolic(X_or_func, y_or_bounds,
         - best_eq: The top-performing analytical expression.
     '''
 
-    import time
     import pandas as pd
     import matplotlib.pyplot as plt
     from scipy.stats import qmc
@@ -1428,3 +1426,252 @@ def stepAIC(X, y, model_type='linear', direction='both', verbose=True):
         print(optimal_model.summary())
         
     return optimal_features, optimal_model
+
+
+### risk
+def volatility(func, bounds, solution, noise=0.01, n_samples=2**10, 
+               seed=None, args=None, verbose=True):
+    '''
+    Objective:
+        - Evaluates the volatility of a solution within an objective landscape.
+            - Perturbs a local Sobol sequence with noise.
+    Inputs:
+        - func: Objective function describing the numerical landscape.
+        - bounds: Parameter bounds to ensure the noise doesn't violate physical/system limits.
+        - solution: The coordinate/solution being evaluated.
+        - noise: Fraction of the total bound span, or array of absolute deviations.
+        - n_samples: Number of samples in the volatility cloud.
+        - seed: Random seed for reproducibility.
+        - args: Arguments for the objective function.
+        - verbose: Print basic volatility stats and plot a localized density.
+    Outputs:
+        - vol_data: DataFrame containing the parameter cloud and the objective outcomes.
+        - vol_stats: Basic statistics of the localized volatility.
+    '''
+    import pandas as pd
+
+    ### preprocess inputs
+    n_dims = len(bounds)
+    solution = np.array(solution)
+    if args is None:
+        args = ()
+    
+    if seed is None:
+        seed = int(time.time())
+    else:
+        seed = int(seed)
+        
+    # absolute noise spans based on bounds
+    lower_bounds = np.array([b[0] for b in bounds])
+    upper_bounds = np.array([b[1] for b in bounds])
+    spans = upper_bounds - lower_bounds
+    
+    # can pass noise percentage or an array of noise values
+    if np.isscalar(noise):
+        abs_noise = spans * noise
+    else:
+        abs_noise = np.array(noise)
+    
+    # localized bounds clipped to global bounds
+    cloud_lower = np.maximum(solution - abs_noise, lower_bounds)
+    cloud_upper = np.minimum(solution + abs_noise, upper_bounds)
+    
+    # generate sobol sequence cloud
+    sampler = stats.qmc.Sobol(d=n_dims, scramble=True, seed=seed)
+    master_samples = sampler.random(n=n_samples)
+    cloud_samples = stats.qmc.scale(master_samples, cloud_lower, cloud_upper)
+    
+    # evaluate objective function over the volatility cloud sequence
+    Z_cloud = np.zeros(n_samples)
+    for i in range(n_samples):
+        Z_cloud[i] = func(cloud_samples[i], *args)
+        
+    # baseline evaluation at solution
+    baseline_z = func(solution, *args)
+    
+    # statistics
+    min_spike = np.min(Z_cloud)
+    max_spike = np.max(Z_cloud)
+    mean_shift = np.mean(Z_cloud)
+    median_shift = np.median(Z_cloud)
+    vol_std = np.std(Z_cloud, ddof=1)
+    vol_stats = {
+        'baseline_obj': baseline_z,
+        'mean_obj': mean_shift,
+        'median_obj': median_shift,
+        'min_obj': min_spike,
+        'max_obj': max_spike,
+        'stdev_obj': vol_std,
+        'worst_case_degradation': max_spike - baseline_z
+    }
+
+    ### display results
+    if verbose:
+        # print stats
+        print(f'Objective Volatility ({noise:.1%} noise perturbation):')
+        print(f' - Initial Solution: {baseline_z:.4g}')
+        print(f' - Local Mean: {mean_shift:.4g}')
+        print(f' - Local Stdev: {vol_std:.4g}')
+        print(f' - Local Max: {max_spike:.4g}')
+        print(f' - Local Min: {min_spike:.4g}\n')
+        
+        ### plot volatility distribution
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(7, 4.5))
+        plt.hist(Z_cloud, bins=50, density=True, color='darkorange', alpha=0.5)
+        plt.axvline(baseline_z, color='black', linestyle='--', label=f'Solution ({baseline_z:.3g})')
+        plt.axvline(mean_shift, color='red', linestyle=':', label=f'Local Avg. ({mean_shift:.3g})')
+        
+        plt.title('Solution Volatility')
+        plt.xlabel('Objective Value')
+        plt.ylabel('Density')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    ### output as a dataframe (formatted to pass into risk_analysis function)
+    data_matrix = np.column_stack((cloud_samples, Z_cloud))
+    col_names = [f'x{i}' for i in range(n_dims)] + ['objective']
+    vol_data = pd.DataFrame(data_matrix, columns=col_names)
+    
+    return vol_data, vol_stats
+
+def risk_analysis(data, minimize_objective=True, alpha=0.01, 
+                  verbose=True, save=False):
+    '''
+    Objective:
+        - Analyzes the conditional value at risk for a given distribution.
+    Inputs:
+        - data: 1D array of data distribution.
+        - minimize_objective: Boolean to determine which tail describes risk.
+            - True if high values are bad (cost/energy). False if low values are bad (gains/profits).
+        - alpha: Tail probabilities to be evaluated (i.e. 0.05 for 95% confidence).
+        - verbose: Boolean to display statistics and visualizations.
+        - save: Boolean to save the plot as a PDF (risk_analysis.pdf).
+    Outputs:
+        - risk_stats: Dictionary containing the conditional value at risk statistics.
+    '''
+    
+    import pandas as pd
+
+    ### preprocess input data
+    data_arr = np.array(data)
+    if data_arr.ndim > 1:
+        raise ValueError('Array inputs must be 1D.')
+    
+    x = pd.to_numeric(pd.Series(np.ravel(data)), errors='coerce').dropna().values
+    if len(x) == 0:
+        print('No valid numeric data found.')
+        return None
+
+    # statistics
+    mean_val = np.mean(x)
+    median_val = np.median(x)
+    std_val = np.std(x, ddof=1)
+    skewness = stats.skew(x)
+    kurt = stats.kurtosis(x) # excess kurtosis (normal = 0; fat tails > 0)
+    
+    # conditional value at risk at multiple tail thresholds
+    risk_metrics = {}
+    alphas = sorted(np.atleast_1d(alpha), reverse=True)
+    for a in alphas:
+        conf_level = 1 - a
+        if minimize_objective:
+            # risk is in the right tail (high values are bad)
+            var_threshold = np.percentile(x, conf_level * 100)
+            cvar_val = np.mean(x[x >= var_threshold])
+            semi_dev = np.std(x[x >= mean_val], ddof=1) if len(x[x >= mean_val]) > 1 else 0
+        else:
+            # risk is in the left tail (low values are bad)
+            var_threshold = np.percentile(x, a * 100)
+            cvar_val = np.mean(x[x <= var_threshold])
+            semi_dev = np.std(x[x <= mean_val], ddof=1) if len(x[x <= mean_val]) > 1 else 0
+            
+        risk_metrics[f'VaR_{a:.0%}'] = var_threshold
+        risk_metrics[f'CVaR_{a:.0%}'] = cvar_val
+
+    if verbose:
+        ### print stats
+        direction_str = 'Minimization (Right-Tail Risk)' if minimize_objective else 'Maximization (Left-Tail Risk)'
+        print(f'Risk Analysis: {direction_str}')
+        print(f'- Mean: {mean_val:.4g}')
+        print(f'- Median: {median_val:.4g}')
+        print(f'- Volatility (Std Dev): {std_val:.4g}')
+        print(f'- Downside Deviation: {semi_dev:.4g}')
+        
+        print(f'\nShape:')
+        print(f"- Skewness: {skewness:.3f} {'(Symmetric)' if abs(skewness)<0.5 else '(Asymmetric)'}")
+        print(f"- Excess Kurtosis: {kurt:.3f} {'(Fat tails: Extreme events likely)' if kurt>1 else '(Thin Tails)'}")
+        
+        print(f'\nTail Risk:')
+        for a in alphas:
+            print(f"- {1-a:.0%} Threshold: {risk_metrics[f'VaR_{a:.0%}']:.4g}")
+            print(f"- {1-a:.0%} CVaR (Expected Shortfall): {risk_metrics[f'CVaR_{a:.0%}']:.4g}")
+    
+        ### visualization
+        from matplotlib.backends.backend_pdf import PdfPages
+        import matplotlib.pyplot as plt
+
+        # downsample for efficiency
+        max_plot_points = 10000
+        x_plot = np.random.choice(x, max_plot_points, replace=False) if len(x) > max_plot_points else x
+    
+        fig, ax = plt.subplots(figsize=(8, 5))
+        
+        # KDE via scipy instead of seaborn
+        kde = stats.gaussian_kde(x_plot)
+        x_min, x_max = x_plot.min(), x_plot.max()
+        padding = (x_max - x_min) * 0.1 # 10% padding to plot edges
+        
+        kde_x = np.linspace(x_min - padding, x_max + padding, 1000)
+        kde_y = kde(kde_x)
+        
+        # plot base intensity
+        ax.plot(kde_x, kde_y, color='slategray', linewidth=2)
+        ax.fill_between(kde_x, kde_y, color='slategray', alpha=0.4)
+        
+        # alpha values for shading
+        primary_a = alphas[-1]
+        primary_var = risk_metrics[f'VaR_{primary_a:.0%}']
+        primary_cvar = risk_metrics[f'CVaR_{primary_a:.0%}']
+
+        # mean and median lines
+        ax.axvline(mean_val, color='black', linestyle=':', label=f'Mean: {mean_val:.3g}')
+        ax.axvline(median_val, color='gray', linestyle=':', label=f'Median: {median_val:.3g}')
+        
+        # tail determination
+        if minimize_objective:
+            tail_idx = kde_x >= primary_var
+            ax.fill_between(kde_x[tail_idx], kde_y[tail_idx], color='crimson', alpha=0.6)
+            ax.axvline(primary_var, color='red', linestyle='--', label=f'{1-a:.0%} Threshold: {primary_var:.3g}')
+            ax.axvline(primary_cvar, color='darkred', linestyle='-', linewidth=2.5, label=f'{1-a:.0%} CVaR: {primary_cvar:.3g}')
+        else:
+            tail_idx = kde_x <= primary_var
+            ax.fill_between(kde_x[tail_idx], kde_y[tail_idx], color='crimson', alpha=0.6)
+            ax.axvline(primary_var, color='red', linestyle='--', label=f'{1-a:.0%} Threshold: {primary_var:.3g}')
+            ax.axvline(primary_cvar, color='darkred', linestyle='-', linewidth=2.5, label=f'{1-a:.0%} CVaR: {primary_cvar:.3g}')
+    
+        plt.title(f'Conditional Value at Risk')
+        plt.xlabel('Objective Value')
+        plt.ylabel('Density')
+        plt.legend()
+    
+        # save analysis
+        save_filename = 'risk_analysis.pdf'
+        if save:
+            pdf = PdfPages(save_filename)
+            pdf.savefig(fig, bbox_inches='tight')
+            pdf.close()
+            print(f'\nSaved analysis to {save_filename}.')
+            
+        plt.tight_layout()
+        plt.show()
+
+    # return risk_stats dictionary
+    risk_stats = {
+        'mean': mean_val, 'std': std_val, 'median': median_val, 'semi_dev': semi_dev,
+        'skew': skewness, 'kurtosis': kurt
+    }
+    risk_stats.update(risk_metrics)
+    
+    return risk_stats

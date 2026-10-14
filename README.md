@@ -1,8 +1,6 @@
 # hdim-opt: High-Dimensional Optimization Toolkit
 
-`hdim_opt` is a lightweight yet comprehensive Python toolkit to streamline numerical optimization, sampling, and analysis of high-dimensional function landscapes and datasets. It features several methods for sample initialization, derivative & derivative-free optimization, and statistical analyses & visualizations of the solution landscape. 
-
-`hdim_opt` provides single-line execution to streamline and improve upon common tasks that are inefficient to implement manually; particularly effective for black-box, high-dimensional, non-differentiable, non-parametric, multi-modal, multi-objective, and non-convex objective functions.
+`hdim_opt` is a lightweight and comprehensive Python toolkit to streamline numerical optimization, sampling, and analysis of high-dimensional function landscapes and datasets. Several cohesive methods are provided for random & quasi-Monte Carlo sampling, gradient-based & non-parametric optimization, statistical analyses & visualizations of function landscapes & datasets.
 
 All core functions, listed below, are single-line executable and depend on three essential parameters: [obj_function, bounds, n_samples]:
 
@@ -17,6 +15,10 @@ All core functions, listed below, are single-line executable and depend on three
 * **minimize**: Optimization using gradient-based minimization (via SciPy.minimize).
 * **symbolic**: Symbolic regression to approximate the input data or function (via gplearn).
 * **stepAIC**: Stepwise feature selection for linear or logistic regression (R's MASS:stepAIC).
+
+### Risk
+* **volatility**: Quantifies the volatility of a given solution within its local landscape.
+* **risk_analysis**: Analyzes the conditional value at risk for a given 1-D distribution.
 
 ### Analysis
 * **sensitivity**: Sensitivity analysis to quantify each dimension's influence (via SALib).
@@ -38,7 +40,7 @@ import hdim_opt as h
 
 ### Parameter Space
 n_samples = 2**10
-n_dimensions = 10
+n_dimensions = 100
 bounds = [(-100,100)] * n_dimensions # Parameter bounds
 obj_func = h.test_functions.rastrigin # Test function
 
@@ -54,18 +56,22 @@ local_sol, local_fit = h.minimize(obj_func, bounds, init=solution) # Gradient-ba
 all_expr, best_expr = h.symbolic(obj_func, bounds) # Symbolic regression
 opt_features, opt_model = h.stepAIC(iso_samples, solution) # R's stepAIC for feature selection & linear regression
 
+### Risk
+vol_data, vol_stats = h.volatility(obj_func, bounds, solution, noise=0.01) # Local instability of a solution
+risk_stats = h.risk_analysis(vol_data['objective']) # Conditional value at risk for a 1-D distribution
+
 ### Analysis
 Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
-slice_data, stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1), n_samples=2**7) # Estimate solution space
-signal_results = h.waveform(uniform_samples[:,0], slice_data.iloc[:,1]) # Analyze 2D waveform
+slice_data, slice_stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1), n_samples=2**7) # Estimate solution space
+signal_results = h.waveform(slice_data['x0'], slice_data['objective']) # Analyze 2D waveform
 h.analyze(slice_data) # Analyze any numerical dataset
 ```
+
+## Issues & Support
+Bug reports are highly appreciated and will be handled timely.
 
 ## QUASAR Optimization
 Quasi-Adaptive Search with Asymptotic Reinitialization is an evolutionary algorithm highly efficient for minimizing high-dimensional, non-differentiable, and non-parametric objective functions. ([https://arxiv.org/abs/2511.13843]).
 
 ## Hyperellipsoid Sampling
 Hyperellipsoid Density Sampling is a non-uniform Quasi-Monte Carlo sampling method, designed to exploit promising regions of the parameter space ([https://arxiv.org/abs/2511.07836]).
-
-## Issues & Support
-Bug reports are highly appreciated and will be handled timely.

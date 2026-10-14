@@ -14,6 +14,10 @@ Functions:
 	- symbolic: Symbolic regression to approximate the input data or function (via gplearn).
 	- stepAIC: Stepwise feature selection for linear or logistic regression (R's MASS:stepAIC).
 
+	Risk:
+	- volatility: Quantifies the volatility of a given solution within its local landscape.
+	- risk_analysis: Analyzes the conditional value at risk for a given 1-D distribution.
+
 	Analysis:
 	- sensitivity: Sensitivity analysis to quantify each dimension's influence (via SALib).
 	- hyperslice: Generate a hyperslice of a function's underlying solution space.
@@ -25,6 +29,7 @@ Functions:
 	- test_functions: Contains test functions for local optimization testing.
 
 Example Usage:
+
 	### Import
 	>>> import hdim_opt as h
 
@@ -46,15 +51,19 @@ Example Usage:
 	>>> all_expr, best_expr = h.symbolic(obj_func, bounds) # Symbolic regression
 	>>> opt_features, opt_model = h.stepAIC(iso_samples, solution) # R's stepAIC for linear/logistic regression
 
+	### Risk
+	>>> vol_data, vol_stats = h.volatility(obj_func, bounds, solution, noise=0.01) # Local instability of a solution
+	>>> risk_stats = h.risk_analysis(vol_data['objective']) # Conditional value at risk for a 1-D distribution
+
 	### Analysis
 	>>> Si, S2 = h.sensitivity(obj_func, bounds) # Sensitivity analysis
-	slice_data, stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1), n_samples=2**7) # Estimate solution space
+	>>> slice_data, slice_stats = h.hyperslice(obj_func, bounds, slice_dims=(0,1), n_samples=2**7) # Estimate solution space
 	>>> signal_results = h.waveform(uniform_samples[:,0], slice_data.iloc[:,1]) # Analyze 2D waveform
 	>>> h.analyze(slice_data) # Analyze any numerical dataset
 """
 
 # package version
-__version__ = "1.6.5"
+__version__ = "1.7.0"
 
 # import core components
 from .quasar_optimization import optimize as quasar
@@ -73,10 +82,11 @@ except ImportError as e:
 # sensitivity analysis, lorentzian KDE, data analysis, isotropization
 try:
     from .sens_analysis import (sensitivity, lorentzian, analyze, hyperslice, symbolic, stepAIC, 
-        isotropize, deisotropize, encode_bipolar, decode_bipolar)
+        isotropize, deisotropize, encode_bipolar, decode_bipolar, volatility, risk_analysis)
 except ImportError as e:
     sensitivity = lorentzian = analyze = hyperslice = symbolic = stepAIC = None
     isotropize = deisotropize = encode_bipolar = decode_bipolar = None
+    volatility = risk_analysis = None
     print(e)
 
 # waveform analysis
@@ -99,5 +109,6 @@ __all__ = [
     'quasar', 'hyperellipsoid', 'sensitivity', 'analyze',
     'lorentzian', 'uniform', 'waveform', 'hyperslice', 'symbolic', 'stepAIC',
     'isotropize', 'deisotropize', 'encode_bipolar', 'decode_bipolar',
+    'volatility', 'risk_analysis',
     'test_functions', 'quasar_helpers', 'waveform_analysis'
 ]
