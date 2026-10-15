@@ -4,10 +4,11 @@ import time
 epsilon = np.finfo(float).tiny
 
 ### sensitivity analysis
-def sensitivity(func, bounds, n_samples=2**7, 
-                  args=None, kwargs=None, 
-                  param_names=None, calc_second_order=True, 
-                  log_scale=False, num_to_plot=10, verbose=True):
+def sensitivity(func, bounds, n_samples=2**7,
+                  args=None, kwargs=None,
+                  param_names=None, calc_second_order=True,
+                  max_dimensions=100, log_scale=False, 
+                  num_to_plot=10, verbose=True):
     '''
     Objective:
         - Perform global Sobol sensitivity analysis on the objective function.
@@ -19,6 +20,7 @@ def sensitivity(func, bounds, n_samples=2**7,
         - kwargs: Keyword arguments (dictionary) for objective function.
         - param_names: Optional parameter names for each dimension.
         - calc_second_order: Boolean to calculate second-order interactions. Disable to improve computation speed.
+        - max_dimensions: Number of dimensions analyze, to avoid memory bloat in high dimensions (via Latin Hypercube screening).
         - log_scale: Boolean to log-scale plots.
         - num_to_plot: Number of dimensions to plot.
         - verbose: Boolean to display plots.
@@ -29,6 +31,7 @@ def sensitivity(func, bounds, n_samples=2**7,
 
     ### imports
     from SALib.sample import sobol as sobol_sample
+    from SALib.sample import latin
     from SALib.analyze import sobol as sobol_analyze
     import pandas as pd
     
@@ -40,18 +43,6 @@ def sensitivity(func, bounds, n_samples=2**7,
         param_names = range(0,n_params)
     elif len(param_names) != len(bounds):
         raise ValueError('Length of param_names does not match length of bounds.')
-    
-    ### define problem for SALib
-    problem = {
-        'num_vars': n_params,
-        'names': param_names,
-        'bounds' : bounds
-        }
-
-    ### generate samples
-    if verbose:
-        print(f'Generating Sobol samples (N={n_samples:,.0f}, D={n_params}).')
-    param_values = sobol_sample.sample(problem, n_samples, calc_second_order=calc_second_order)
 
     ### args / kwargs for the objective function
     if args is None:
@@ -60,6 +51,63 @@ def sensitivity(func, bounds, n_samples=2**7,
         kwargs = {}
     def wrapped_func(x_samples):
         return func(x_samples, *args, **kwargs)
+
+    ### pre-screening for high-dimensional problems (via latin hypercube)
+    active_indices = np.arange(n_params)
+    if n_params > max_dimensions:
+        if verbose:
+            print(f'LHS pre-screening: {max_dimensions} most influential dimensions.')
+        
+        # problem for LHS
+        lhs_problem = {
+            'num_vars': n_params,
+            'names': list(param_names),
+            'bounds': bounds.tolist()
+        }
+        
+        # small number of samples to test
+        n_lhs_samples = 1000
+        param_values_lhs = latin.sample(lhs_problem, N=n_lhs_samples).astype(np.float32)
+        
+        # evaluate samples (vectorized or loop)
+        try:
+            values_lhs = wrapped_func(param_values_lhs)
+            values_lhs = np.asarray(values_lhs).flatten()
+            if values_lhs.shape[0] != param_values_lhs.shape[0]:
+                raise ValueError()
+        except Exception:
+            values_lhs = np.array([wrapped_func(sample) for sample in param_values_lhs])
+        
+        # calculate each dimension's correlation to the objective value
+        X = param_values_lhs.astype(np.float64)
+        y = values_lhs.astype(np.float64)
+        X_cent = X - X.mean(axis=0)
+        y_cent = y - y.mean()
+        numerator = X_cent.T @ y_cent
+        denom = np.sqrt(np.sum(X_cent**2, axis=0) * np.sum(y_cent**2))
+        correlations = np.abs(numerator / denom)
+        correlations = np.nan_to_num(correlations)
+        
+        # select top parameters
+        top_indices = np.argsort(correlations)[-max_dimensions:]
+        top_indices = np.sort(top_indices)
+        
+        # downscale for sobol sensitivity analysis
+        bounds = bounds[top_indices]
+        param_names = [param_names[i] for i in top_indices]
+        n_params = max_dimensions
+
+    ### define problem for SALib
+    problem = {
+        'num_vars': n_params,
+        'names': param_names,
+        'bounds': bounds
+        }
+
+    ### generate samples
+    if verbose:
+        print(f'Generating Sobol samples (N={n_samples:,.0f}, D={n_params}).')
+    param_values = sobol_sample.sample(problem, n_samples, calc_second_order=calc_second_order)
 
     ### evaluate samples
     # vectorized evaluation
@@ -651,16 +699,16 @@ def analyze(data, transform=False, save=False):
     import numpy as np
     import matplotlib.pyplot as plt
     import seaborn as sns
-    from sklearn.linear_model import LinearRegression
-    from matplotlib.collections import LineCollection
-    from matplotlib.backends.backend_pdf import PdfPages
     from sklearn.metrics import r2_score
     from sklearn.decomposition import PCA
     from sklearn.preprocessing import StandardScaler
+    from sklearn.feature_selection import mutual_info_regression
     from scipy import stats
+    from scipy.spatial.distance import pdist, squareform
+    from sklearn.linear_model import LinearRegression
+    from matplotlib.collections import LineCollection
+    from matplotlib.backends.backend_pdf import PdfPages
     import warnings
-    warnings.filterwarnings("ignore", category=FutureWarning) # suppress seaborn warnings
-    warnings.filterwarnings("ignore", category=RuntimeWarning) # suppress stats.entropy div0 warnings
 
     ### clean dataframe
     df = pd.DataFrame(data)
@@ -801,13 +849,13 @@ def analyze(data, transform=False, save=False):
     ### pairwise comparison
     try:
         ### normalized standard deviation (occupancy)
-        N = len(data)
+        n_samples = len(data)
         span = data.max() - data.min()
         dim_sds = np.std(data, axis=0, ddof=1)
         norm_sds = dim_sds / span
         
         # standard error of the standard deviation (for a normal-ish distribution) is approx sigma / sqrt(2N)
-        dim_se = dim_sds / np.sqrt(2 * N) 
+        dim_se = dim_sds / np.sqrt(2 * n_samples) 
         norm_se = dim_se / span
         total_occupancy = np.sqrt(np.mean(norm_sds**2))
         total_occupancy_se = np.mean(norm_se) # average uncertainty across the 11-D space
@@ -851,7 +899,6 @@ def analyze(data, transform=False, save=False):
         
         # 2d metrics
         else:
-            print('Axes:')
             ### calculate metrics
             # pearson correlation
             corr = stats.pearsonr(x, y)
@@ -865,9 +912,33 @@ def analyze(data, transform=False, save=False):
             lin_model = LinearRegression()
             lin_model.fit(x.reshape(-1,1),y.reshape(-1,1))
             r2 = lin_model.score(x.reshape(-1,1),y.reshape(-1,1))
-            print(f'- Correlation: {corr[0]:.3f} (p={corr[1]:.3e})')
-            print(f'- Regression: y = {lin_model.coef_[0][0]:.3g}x + {lin_model.intercept_[0]:.3g}  (r2={r2:.3f})')
-            print(f'- Ratio: {ratio:.2g} (p={p_value:.3g})\n')
+
+            ### non-linear metrics
+            # distance correlation
+            dist_corr = 0.0
+            a = squareform(pdist(np.atleast_1d(x)[:, None]))
+            b = squareform(pdist(np.atleast_1d(y)[:, None]))
+            A = a - a.mean(axis=0, keepdims=True) - a.mean(axis=1, keepdims=True) + a.mean()
+            B = b - b.mean(axis=0, keepdims=True) - b.mean(axis=1, keepdims=True) + b.mean()
+            dcov2_xy = (A * B).sum() / (n_samples ** 2)
+            dcov2_xx = (A * A).sum() / (n_samples ** 2)
+            dcov2_yy = (B * B).sum() / (n_samples ** 2)
+            if dcov2_xx == 0 or dcov2_yy == 0:
+                dist_corr = 0.0
+            else:
+                dist_corr = np.sqrt(np.clip(dcov2_xy / np.sqrt(dcov2_xx * dcov2_yy), 0, 1))
+
+            # mutual information
+            mi = mutual_info_regression(x.reshape(-1, 1), y, random_state=1)[0]
+
+            ### print metrics
+            print('Linear:')
+            print(f' - Ratio: {ratio:.2g} (p={p_value:.3g})')
+            print(f' - Correlation: {corr[0]:.3f} (p={corr[1]:.3e})')
+            print(f' - Regression: y = {lin_model.coef_[0][0]:.3g}x + {lin_model.intercept_[0]:.3g}  (r2={r2:.3f})\n')
+            print('Non-linear:')
+            print(f' - Distance Correlation: {dist_corr:.3f}')
+            print(f' - Mutual Information: {mi:.3f}')
         
     except Exception as e:
         print(f'Bypassing metrics ({e})')
@@ -905,7 +976,7 @@ def analyze(data, transform=False, save=False):
     
         # colormap dark mode: black -> color -> white | light mode: white -> color -> black
         dynamic_cmap = sns.blend_palette([bg_color, user_color, text_color], as_cmap=True)
-        sns.kdeplot(x=x_plot, y=y_plot, fill=True, cmap=dynamic_cmap, ax=ax[1], thresh=0.03)
+        sns.kdeplot(x=x_plot, y=y_plot, fill=True, cmap=dynamic_cmap, ax=ax[1], thresh=0.03, warn_singular=False)
         ax[1].set_title('Density')
         ax[1].set_xlabel(x_label)
         ax[1].set_ylabel(y_label)
